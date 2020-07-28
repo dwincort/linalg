@@ -29,7 +29,7 @@ default-extensions:
   - TypeOperators
   # - UndecidableInstances
   - ViewPatterns
-  # - ScopedTypeVariables
+  - ScopedTypeVariables
   - KindSignatures
   # - NoStarIsType
   - TypeSynonymInstances
@@ -42,6 +42,7 @@ library:
     - base
     - distributive
     - adjunctions
+    - constraints
   other-modules: []
   source-dirs: src
   exposed-modules:
