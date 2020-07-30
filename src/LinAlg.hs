@@ -19,10 +19,12 @@ type (:*)  = (,)
 unzip :: Functor f => f (a :* b) -> f a :* f b
 unzip ps = (fst <$> ps, snd <$> ps)
 
-type V f = ((Representable f, Foldable f, Eq (Rep f), ToScalar f, ToRowMajor f, HasShape f)
-            :: Constraint)
+type V' f = (Representable f, Foldable f, Eq (Rep f), ToScalar f, ToRowMajor f)
+            :: Constraint
+type V f = (V' f, HasShape f) :: Constraint
 type V2 f g = (V f, V g)
 type V3 f g h = (V2 f g, V h)
+type V3' f g h = (V2 f g, V' h)
 type V4 f g h k = (V2 f g, V2 h k)
 
 -- TODO: Why does V suddenly need ":: Constraint" after adding ToScalar f and
@@ -58,8 +60,8 @@ data L :: (* -> *) -> (* -> *) -> (* -> *) where
   Scale :: s -> L Par1 Par1 s
   (:|#) :: V3 f g h => L f h s -> L g h s -> L (f :*: g) h s
   (:&#) :: V3 f h k => L f h s -> L f k s -> L f (h :*: k) s
-  JoinL :: V3 f g h => h (L f g s) -> L (h :.: f) g s
-  ForkL :: V3 f g h => h (L f g s) -> L f (h :.: g) s
+  JoinL :: V3' f g h => h (L f g s) -> L (h :.: f) g s
+  ForkL :: V3' f g h => h (L f g s) -> L f (h :.: g) s
 
 unjoin2 :: V3 f g h => L (f :*: g) h s -> L f h s :* L g h s
 unjoin2 (p :|# q) = (p,q)
@@ -95,7 +97,7 @@ pattern (:|) :: V3 f g h => L f h s -> L g h s -> L (f :*: g) h s
 pattern u :| v <- (unjoin2 -> (u,v)) where (:|) = (:|#)
 {-# complete (:|) #-}
 
-unforkL :: V3 f g h => L f (h :.: g) s -> h (L f g s)
+unforkL :: V3' f g h => L f (h :.: g) s -> h (L f g s)
 unforkL (p :|# q)  = liftR2 (:|#) (unforkL p) (unforkL q)
 unforkL (ForkL ms) = ms
 unforkL (JoinL ms) = JoinL <$> distribute (unforkL <$> ms)
@@ -119,16 +121,16 @@ liftR2 (:|#) (unforkL p) (unforkL p') :: h (L (f :*: f') g s)
 JoinL <$> distrib (unforkL <$> ms) :: h (L (k :.: f) g s)
 #endif
 
-unjoinL :: V3 f g h => L (h :.: f) g s -> h (L f g s)
+unjoinL :: V3' f g h => L (h :.: f) g s -> h (L f g s)
 unjoinL (p :&# p') = liftR2 (:&#) (unjoinL p) (unjoinL p')
 unjoinL (JoinL ms) = ms
 unjoinL (ForkL ms) = fmap ForkL (distribute (fmap unjoinL ms))
 
-pattern Fork :: V3 f g h => h (L f g s) -> L f (h :.: g) s
+pattern Fork :: V3' f g h => h (L f g s) -> L f (h :.: g) s
 pattern Fork ms <- (unforkL -> ms) where Fork = ForkL
 {-# complete Fork #-}
 
-pattern Join :: V3 f g h => h (L f g s) -> L (h :.: f) g s
+pattern Join :: V3' f g h => h (L f g s) -> L (h :.: f) g s
 pattern Join ms <- (unjoinL -> ms) where Join = JoinL
 {-# complete Join #-}
 
@@ -141,11 +143,11 @@ instance (V2 f g, Additive s) => Additive (L f g s) where
   JoinL ms  + Join ms' = Join (ms +^ ms')
 
 -- | Row-major "matrix" of linear maps
-rowMajor' :: (V2 f g, V2 h k) => k (h (L f g s)) -> L (h :.: f) (k :.: g) s
+rowMajor' :: (V2 f g, V' h, V' k) => k (h (L f g s)) -> L (h :.: f) (k :.: g) s
 rowMajor' = Fork . fmap Join
 
 -- | Row-major "matrix" of scalars
-rowMajor :: (V f, V g) => g (f s) -> L (f :.: Par1) (g :.: Par1) s
+rowMajor :: (V' f, V' g) => g (f s) -> L (f :.: Par1) (g :.: Par1) s
 rowMajor = rowMajor' . (fmap.fmap) Scale
 
 diagRep :: (Representable h, Eq (Rep h)) => a -> h a -> h (h a)
@@ -192,11 +194,11 @@ exr = zero :| idL
 -- Note that idL == inl :| inr == exl :& exr.
 
 -- N-ary injections
-ins :: (V2 a c, Semiring s) => c (L a (c :.: a) s)
+ins :: (V a, V' c, Semiring s) => c (L a (c :.: a) s)
 ins = unjoinL idL
 
 -- N-ary projections
-exs :: (V2 a c, Semiring s) => c (L (c :.: a) a s)
+exs :: (V a, V' c, Semiring s) => c (L (c :.: a) a s)
 exs = unforkL idL
 
 -- Note that idL == joinL ins == forkL exs
@@ -207,7 +209,7 @@ exs = unforkL idL
 f *** g = (f :|# zero) :&# (zero :|# g)
 
 -- N-ary biproduct bifunctor
-cross :: (V3 a b c, Additive s) => c (L a b s) -> L (c :.: a) (c :.: b) s
+cross :: (V3' a b c, Additive s) => c (L a b s) -> L (c :.: a) (c :.: b) s
 cross = JoinL . fmap ForkL . diagRep zero
 
 {- Note that
@@ -243,7 +245,7 @@ instance V2 a b => ToScalar (a :*: b) where
   rowToL (a :*: b) = RowToL a :| RowToL b
   lToRow (RowToL a :| RowToL b) = a :*: b
 
-instance V2 a b => ToScalar (b :.: a) where
+instance (V a, V' b) => ToScalar (b :.: a) where
   rowToL (Comp1 as) = Join (rowToL <$> as)
   lToRow (Join m) = Comp1 (lToRow <$> m)
 
@@ -277,7 +279,7 @@ instance V2 b b' => ToRowMajor (b :*: b') where
   rowMajToL (as :*: as') = RowMajToL as :& RowMajToL as'
   lToRowMaj (RowMajToL as :& RowMajToL as') = as :*: as'
 
-instance V2 a b => ToRowMajor (b :.: a) where
+instance (V a, V' b) => ToRowMajor (b :.: a) where
   rowMajToL (Comp1 as) = Fork (rowMajToL <$> as)
   lToRowMaj (Fork m) = Comp1 (lToRowMaj <$> m)
 
@@ -293,7 +295,7 @@ scaleV s = rowMajToL (diagRep zero (pureRep s))
 
 data Shape a where
   IsPar :: Shape Par1
-  IsComp :: (V h, V a) => Shape (h :.: a)
+  IsComp :: (V' h, V a) => Shape (h :.: a)
   IsProd :: (V a, V b) => Shape (a :*: b)
 
 class HasShape a where
@@ -302,7 +304,7 @@ class HasShape a where
 instance HasShape Par1 where
   shape = IsPar
 
-instance (V h, V a) => HasShape (h :.: a) where
+instance (V' h, V a) => HasShape (h :.: a) where
   shape = IsComp
 
 instance (V a, V b) => HasShape (a :*: b) where
@@ -312,10 +314,10 @@ instance (V a, V b) => HasShape (a :*: b) where
 withShapes :: V2 f g => L f g s -> (Shape f, Shape g, L f g s)
 withShapes x = (shape, shape, x)
 
-pattern Join' :: V2 f g => (f ~ (h :.: f'), V2 h f') => h (L f' g s) -> L f g s
+pattern Join' :: V2 f g => (f ~ (h :.: f'), V' h, V f') => h (L f' g s) -> L f g s
 pattern Join' ms <- (withShapes -> (IsComp, _, unjoinL -> ms)) where Join' = JoinL
 
-pattern Fork' :: (V2 f g) => (g ~ (h :.: g'), V2 h g') => h (L f g' s) -> L f g s
+pattern Fork' :: (V2 f g) => (g ~ (h :.: g'), V' h, V g') => h (L f g' s) -> L f g s
 pattern Fork' ms <- (withShapes -> (_, IsComp, unforkL -> ms)) where Fork' = ForkL
 
 pattern (:|:) :: (V2 f g) => (f ~ (f' :*: h), V2 f' h) => L f' g s -> L h g s -> L f g s
