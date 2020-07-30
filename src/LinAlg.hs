@@ -7,7 +7,6 @@ module LinAlg where
 import qualified Prelude as P
 import Prelude hiding ((+),sum,(*),unzip)
 
-import GHC.Types (Constraint)
 import GHC.Generics (Par1(..), (:*:)(..), (:.:)(..))
 import qualified Control.Arrow as A
 import Data.Distributive
@@ -20,15 +19,11 @@ unzip :: Functor f => f (a :* b) -> f a :* f b
 unzip ps = (fst <$> ps, snd <$> ps)
 
 type V' f = (Representable f, Foldable f, Eq (Rep f), ToScalar f, ToRowMajor f)
-            :: Constraint
-type V f = (V' f, HasShape f) :: Constraint
+type V  f = (V' f, HasShape f)
 type V2 f g = (V f, V g)
 type V3 f g h = (V2 f g, V h)
 type V3' f g h = (V2 f g, V' h)
 type V4 f g h k = (V2 f g, V2 h k)
-
--- TODO: Why does V suddenly need ":: Constraint" after adding ToScalar f and
--- ToRowMajor f?
 
 class Additive a where
   infixl 6 +
@@ -293,37 +288,34 @@ zeroL = rowMajToL (pureRep (pureRep zero))
 scaleV :: (V a, Additive s) => s -> L a a s
 scaleV s = rowMajToL (diagRep zero (pureRep s))
 
+-- | This data type captures the shape of a type so long as it's a `Par1`,
+-- a product, or a composition.
 data Shape a where
   IsPar :: Shape Par1
-  IsComp :: (V' h, V a) => Shape (h :.: a)
   IsProd :: (V a, V b) => Shape (a :*: b)
+  IsComp :: (V' h, V a) => Shape (h :.: a)
 
 class HasShape a where
   shape :: Shape a
 
-instance HasShape Par1 where
-  shape = IsPar
+instance                HasShape Par1      where shape = IsPar
+instance (V a, V  b) => HasShape (a :*: b) where shape = IsProd
+instance (V a, V' h) => HasShape (h :.: a) where shape = IsComp
 
-instance (V' h, V a) => HasShape (h :.: a) where
-  shape = IsComp
-
-instance (V a, V b) => HasShape (a :*: b) where
-  shape = IsProd
-
-
+-- | This is a helper function for the pattern synonyms below.
 withShapes :: V2 f g => L f g s -> (Shape f, Shape g, L f g s)
-withShapes x = (shape, shape, x)
+withShapes = (shape, shape,)
+
+pattern (:|:) :: V2 f g => (f ~ (f' :*: h), V2 f' h) => L f' g s -> L h g s -> L f g s
+pattern f :|: g <- (withShapes -> (IsProd, _, unjoin2 -> (f,g))) where (:|:) = (:|#)
+
+pattern (:&:) :: V2 f g => (g ~ (g' :*: h), V2 g' h) => L f g' s -> L f h s -> L f g s
+pattern f :&: g <- (withShapes -> (_, IsProd, unfork2 -> (f,g))) where (:&:) = (:&#)
 
 pattern Join' :: V2 f g => (f ~ (h :.: f'), V' h, V f') => h (L f' g s) -> L f g s
 pattern Join' ms <- (withShapes -> (IsComp, _, unjoinL -> ms)) where Join' = JoinL
 
-pattern Fork' :: (V2 f g) => (g ~ (h :.: g'), V' h, V g') => h (L f g' s) -> L f g s
+pattern Fork' :: V2 f g => (g ~ (h :.: g'), V' h, V g') => h (L f g' s) -> L f g s
 pattern Fork' ms <- (withShapes -> (_, IsComp, unforkL -> ms)) where Fork' = ForkL
-
-pattern (:|:) :: (V2 f g) => (f ~ (f' :*: h), V2 f' h) => L f' g s -> L h g s -> L f g s
-pattern f :|: g <- (withShapes -> (IsProd, _, unjoin2 -> (f,g))) where (:|:) = (:|#)
-
-pattern (:&:) :: (V2 f g) => (g ~ (g' :*: h), V2 g' h) => L f g' s -> L f h s -> L f g s
-pattern f :&: g <- (withShapes -> (_, IsProd, unfork2 -> (f,g))) where (:&:) = (:&#)
 
 {-# COMPLETE Scale, (:&:), (:|:), Join', Fork' #-}
