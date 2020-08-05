@@ -1,3 +1,7 @@
 flags: {}
 
 resolver: lts-16.5 # ghc-8.8.3
+
+extra-deps:
+- uniform-pair-0.1.15@sha256:7d36d28e35c206248b85d7228ad4aa59c8a746c5ce2ca8396d96cbb9fc4ad1f0,1179
+- prelude-extras-0.4.0.3@sha256:1c10b0123ea13a6423d74a8fcbaeb2d5249b472588abde418a36b47b7c4f48c8,1163

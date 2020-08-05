@@ -46,7 +46,12 @@ library:
     - ghc-prim  # GHC.Types (Constraint)
     - distributive
     - adjunctions
+    - uniform-pair
+    - constraints
+    - vector-sized
+    - finite-typelits
   other-modules: []
   source-dirs: src
   exposed-modules:
     - LinAlg
+    - Matrix
