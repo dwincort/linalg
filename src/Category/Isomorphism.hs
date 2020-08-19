@@ -70,6 +70,17 @@ instance Closed e k => Closed e (Iso k) where
 -- | Utilities
 -------------------------------------------------------------------------------
 
+isoSwap :: Iso k a b -> Iso k b a
+isoSwap (f :<-> g) = g :<-> f
+
+-- | Apply one isomorphism via fwd
+apFwdIso :: a <-> b -> a -> b
+apFwdIso (f :<-> _) a = f a
+
+-- | Apply one isomorphism via rev
+apRevIso :: a <-> b -> b -> a
+apRevIso = apFwdIso . isoSwap
+
 -- | Apply one isomorphism via another
 via :: (Category k, Obj2 k a b) => Iso k b b -> Iso k a b -> Iso k a a
 (g :<-> g') `via` (ab :<-> ba) = ba . g . ab :<-> ba . g' . ab

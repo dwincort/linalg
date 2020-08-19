@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 {- |
 "Inductive matrices", as in "Type Your Matrices for Great Good: A Haskell
 Library of Typed Matrices and Applications (Functional Pearl)" Armando Santos
@@ -62,8 +63,85 @@ instance LinearMap L where
 -------------------------------------------------------------------------------
 -- | Instances (all deducible from denotational homomorphisms)
 -------------------------------------------------------------------------------
+pattern Fork :: (C3 V f g h, CartesianR h (:.:) (L s)) => h (L s f g) -> L s f (h :.: g)
+pattern Fork ms <- (unfork -> ms) where Fork = ForkL
+{-# complete Fork #-}
 
-instance Category (L s) where
+pattern Join :: (Additive s,
+                Foldable h,
+                Eq (Rep h),
+                C3 V f g h,
+                CocartesianR h (:.:) (L s))
+             => h (L s f g) -> L s (h :.: f) g
+pattern Join ms <- (unjoin -> ms) where Join = JoinL
+{-# complete Join #-}
+
+instance (forall r. CartesianR r (:.:) (L s),
+          forall r. CocartesianR r (:.:) (L s),
+          Cartesian (:*:) (L s),
+          Cocartesian (:*:) (L s))
+          => Additive (L s f g) where
+  zero                 = apRevIso rowMajIso . apFwdIso rowMajIso $ zero
+  Scale s + Scale s'   = Scale (s + s')
+  (f :|# g) + m        = let (h, k) = unjoin2 m in (f + h :|# g + k)
+  (f :&# g) + m        = let (h, k) = unfork2 m in (f + h :&# g + k)
+  (f :|# g) + (h :| k) = (f + h) :| (g + k)
+  (f :&# g) + (h :& k) = (f + h) :& (g + k)
+  ForkL ms  + Fork ms' = Fork (ms +^ ms')
+  JoinL ms  + Join ms' = Join (ms +^ ms')
+
+rowMajIso :: Iso (->) (L s a b) (b (a s))
+rowMajIso = fwd :<-> rev
+  where
+    fwd :: L s a b -> b (a s)
+    fwd (Scale s) = pureRep (pureRep s)
+    fwd (f :|# g) = liftR2 (:*:) (fwd f) (fwd g)
+    fwd (f :&# g) = fwd f :*: fwd g
+    fwd (JoinL m) = cotraverse Comp1 $ fmapRep fwd m
+    fwd (ForkL m) = Comp1 $ fmapRep fwd m
+    rev :: b (a s) -> L s a b
+    rev = undefined -- TODO: Write rev for toRowMajIso.
+
+instance (forall r. CartesianR r (:.:) (L s),
+          forall r. CocartesianR r (:.:) (L s),
+          Cartesian (:*:) (L s),
+          Cocartesian (:*:) (L s)
+         ) => Category (L s) where
   type Obj' (L s) a = V a
-  id = undefined
-  (.) = undefined
+  id = undefined                                  -- TODO: Write id
+  Scale a   . Scale b   = Scale (a * b)           -- Scale denotation
+  (p :&# q) . m         = (p . m) :&# (q . m)     -- binary product law
+  m         . (p :|# q) = (m . p) :|# (m . q)     -- binary coproduct law
+  (r :|# s) . (p :&# q) = (r . p) + (s . q)       -- biproduct law
+  ForkL ms' . m         = ForkL (fmap (. m) ms')  -- n-ary product law
+  m'        . JoinL ms  = JoinL (fmap (m' .) ms)  -- n-ary coproduct law
+  JoinL ms' . ForkL ms  = sum (liftR2 (.) ms' ms)   -- biproduct law
+
+instance (forall r. Representable r, Additive s)
+      => CartesianR r (:.:) (L s) where
+  exs = unfork id
+  dups = undefined -- TODO: Write dups
+
+instance (forall r. Representable r, Additive s)
+      => CocartesianR r (:.:) (L s) where
+  ins  = unjoin id
+  jams = undefined -- TODO: write jams
+
+instance (forall r. Representable r, Additive s) => Monoidal (:*:) (L s) where
+  f ### g = (inl . f) :|# (inr . g)
+
+instance (forall r. Representable r, Additive s) => MonoidalR r (:.:) (L s) where
+  rmap fs = undefined -- TODO: Write rmap
+
+instance (forall r. Representable r, Additive s) => Cartesian (:*:) (L s) where
+  exl = id :| zero
+  exr = zero :| id
+  dup = id :&# id
+
+instance (forall r. Representable r, Additive s) => Cocartesian (:*:) (L s) where
+  inl = id :&# zero
+  inr = zero :& id
+  jam = id :|# id
+
+instance (forall r. Representable r, Additive s) => Biproduct (:*:) (L s)
+
