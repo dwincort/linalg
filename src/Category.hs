@@ -13,6 +13,7 @@ import GHC.Types (Constraint)
 import qualified Control.Arrow as A
 import Data.Monoid (Ap(..))
 import Data.Functor.Rep
+import GHC.Generics ((:.:)(..))
 
 import Misc
 import Orphans ()
@@ -249,6 +250,10 @@ fork fs = rmap fs . dups
 unfork :: (CartesianR r p k, Obj2 k a b) => a `k` (p r b) -> r (a `k` b)
 unfork f = (. f) <$> exs
 
+pattern Fork :: (Obj' k f, Obj' k g, CartesianR h (:.:) k) => h (k f g) -> k f (h :.: g)
+pattern Fork ms <- (unfork -> ms) where Fork = fork
+-- {-# complete Fork #-} -- See (:&) above
+
 -- Exercise: Prove that fork and unfork form an isomorphism.
 
 -- N-ary biproducts
@@ -261,6 +266,10 @@ join fs = jams . rmap fs
 
 unjoin :: (CocartesianR r co k, Obj2 k a b) => co r a `k` b -> r (a `k` b)
 unjoin f = (f .) <$> ins
+
+pattern Join :: (Obj' k f, Obj' k g, CocartesianR h (:.:) k) => h (k f g) -> k (h :.: f) g
+pattern Join ms <- (unjoin -> ms) where Join = join
+-- {-# complete Join #-} -- See (:&) above
 
 -- TODO: Add fork & unfork to CartesianR with the current definitions as
 -- defaults, and give defaults for exs and dups in terms of fork and unfork.

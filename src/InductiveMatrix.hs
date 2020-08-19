@@ -63,32 +63,22 @@ instance LinearMap L where
 -------------------------------------------------------------------------------
 -- | Instances (all deducible from denotational homomorphisms)
 -------------------------------------------------------------------------------
-pattern Fork :: (C3 V f g h, CartesianR h (:.:) (L s)) => h (L s f g) -> L s f (h :.: g)
-pattern Fork ms <- (unfork -> ms) where Fork = ForkL
-{-# complete Fork #-}
-
-pattern Join :: (Additive s,
-                Foldable h,
-                Eq (Rep h),
-                C3 V f g h,
-                CocartesianR h (:.:) (L s))
-             => h (L s f g) -> L s (h :.: f) g
-pattern Join ms <- (unjoin -> ms) where Join = JoinL
-{-# complete Join #-}
 
 instance (forall r. CartesianR r (:.:) (L s),
           forall r. CocartesianR r (:.:) (L s),
           Cartesian (:*:) (L s),
           Cocartesian (:*:) (L s))
           => Additive (L s f g) where
-  zero                 = apRevIso rowMajIso . apFwdIso rowMajIso $ zero
+  zero                 = isoRev rowMajIso . isoFwd rowMajIso $ zero
   Scale s + Scale s'   = Scale (s + s')
-  (f :|# g) + m        = let (h, k) = unjoin2 m in (f + h :|# g + k)
-  (f :&# g) + m        = let (h, k) = unfork2 m in (f + h :&# g + k)
   (f :|# g) + (h :| k) = (f + h) :| (g + k)
   (f :&# g) + (h :& k) = (f + h) :& (g + k)
-  ForkL ms  + Fork ms' = Fork (ms +^ ms')
+  (f :|# g) + m        = let (h, k) = unjoin2 m in (f + h :|# g + k)
+  (f :&# g) + m        = let (h, k) = unfork2 m in (f + h :&# g + k)
   JoinL ms  + Join ms' = Join (ms +^ ms')
+  ForkL ms  + Fork ms' = Fork (ms +^ ms')
+  JoinL ms  + m = let ms' = unjoin m in Join (ms +^ ms')
+  ForkL ms  + m = let ms' = unfork m in Fork (ms +^ ms')
 
 rowMajIso :: Iso (->) (L s a b) (b (a s))
 rowMajIso = fwd :<-> rev
