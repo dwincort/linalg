@@ -101,7 +101,7 @@ rowMajIso = fwd :<-> rev
     rev :: b (a s) -> L s a b
     rev = undefined -- TODO: Write rev for toRowMajIso.
 
-instance () => Category (L s) where
+instance Category (L s) where
   type Obj' (L s) a = V a
   id = undefined                                  -- TODO: Write id
   Scale a   . Scale b   = Scale (a * b)           -- Scale denotation
@@ -112,7 +112,7 @@ instance () => Category (L s) where
   m'        . JoinL ms  = JoinL (fmap (m' .) ms)  -- n-ary coproduct law
   JoinL ms' . ForkL ms  = sum (liftR2 (.) ms' ms)   -- biproduct law
 
-instance (Representable r,Cartesian (:.:) (L s) , Additive s)
+instance (Representable r, Cartesian (:.:) (L s) , Additive s)
       => CartesianR r (:.:) (L s) where
   exs = unfork id
   dups = undefined -- TODO: Write dups
@@ -120,31 +120,31 @@ instance (Representable r,Cartesian (:.:) (L s) , Additive s)
 instance (Representable r, Cartesian (:.:) (L s), Additive s)
       => CocartesianR r (:.:) (L s) where
   ins  = unjoin id
-  jams = undefined -- TODO: write jams
+  jams = undefined -- TODO: Write jams
 
 -- TODO: Derive Via
-instance (forall r. Representable r, Additive s) => Monoidal (:*:) (L s) where
+instance Additive s => Monoidal (:*:) (L s) where
   f ### g = (inl . f) :|# (inr . g)
 
 -- TODO: Add deriving via capabilities.
 -- Couldn't get constraints to work when defining this instance on the Via
 -- type in Category.hs
-instance (Representable r, Cartesian (:.:) (L s), Additive s) => MonoidalR r (:.:) (L s) where
+instance (Representable r, Cartesian (:.:) (L s)) => MonoidalR r (:.:) (L s) where
   rmap fs = ForkL (fmap (. exr) fs)
 
 -- TODO: Move to Category.hs
 -- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
-instance (forall r. Representable r, Additive s) => Cartesian (:*:) (L s) where
+instance Additive s => Cartesian (:*:) (L s) where
   exl = id :| zero
   exr = zero :| id
   dup = id :&# id
 
 -- TODO: Move to Category.hs
 -- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
-instance (forall r. Representable r, Additive s) => Cocartesian (:*:) (L s) where
+instance Additive s => Cocartesian (:*:) (L s) where
   inl = id :&# zero
   inr = zero :& id
   jam = id :|# id
 
-instance (forall r. Representable r, Additive s) => Biproduct (:*:) (L s)
+instance Additive s => Biproduct (:*:) (L s)
 
