@@ -96,8 +96,8 @@ rowMajIso = fwd :<-> rev
     fwd (Scale s) = pureRep (pureRep s)
     fwd (f :|# g) = liftR2 (:*:) (fwd f) (fwd g)
     fwd (f :&# g) = fwd f :*: fwd g
-    fwd (JoinL m) = cotraverse Comp1 $ fmapRep fwd m
-    fwd (ForkL m) = Comp1 $ fmapRep fwd m
+    fwd (JoinL m) = cotraverse Comp1 $ fmap fwd m
+    fwd (ForkL m) = Comp1 $ fmap fwd m
     rev :: b (a s) -> L s a b
     rev = undefined -- TODO: Write rev for toRowMajIso.
 
