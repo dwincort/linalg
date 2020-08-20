@@ -70,9 +70,6 @@ instance Closed e k => Closed e (Iso k) where
 -- | Utilities
 -------------------------------------------------------------------------------
 
-inverse :: Iso k a b -> Iso k b a
-inverse (f :<-> g) = g :<-> f
-
 -- | Apply one isomorphism via another
 via :: (Category k, Obj2 k a b) => Iso k b b -> Iso k a b -> Iso k a a
 (g :<-> g') `via` (ab :<-> ba) = ba . g . ab :<-> ba . g' . ab

@@ -1,4 +1,3 @@
-{-# LANGUAGE UndecidableInstances #-}
 {- |
 "Inductive matrices", as in "Type Your Matrices for Great Good: A Haskell
 Library of Typed Matrices and Applications (Functional Pearl)" Armando Santos
@@ -64,21 +63,31 @@ instance LinearMap L where
 -- | Instances (all deducible from denotational homomorphisms)
 -------------------------------------------------------------------------------
 
-instance (forall r. CartesianR r (:.:) (L s),
-          forall r. CocartesianR r (:.:) (L s),
-          Cartesian (:*:) (L s),
-          Cocartesian (:*:) (L s))
+-- TODO: Make it compile.
+--
+-- Does not compile!!!!
+-- See:
+--
+-- Could not deduce (Cartesian (:.:) (L s))
+--   arising from a use of ‘unjoin’
+--
+-- And if we add the constrain we need to add UndecidableInstances:
+--
+-- The constraint ‘Cartesian (:.:) (L s)’
+--  is no smaller than the instance head ‘Additive (L s f g)’
+--  (Use UndecidableInstances to permit this)
+--
+-- And then it will ask for Representable r, for which we need to give
+-- a quantified constrain: forall r. Representable r.
+instance ( Additive s
+         )
           => Additive (L s f g) where
   zero                 = isoRev rowMajIso . isoFwd rowMajIso $ zero
   Scale s + Scale s'   = Scale (s + s')
-  (f :|# g) + (h :| k) = (f + h) :| (g + k)
-  (f :&# g) + (h :& k) = (f + h) :& (g + k)
-  (f :|# g) + m        = let (h, k) = unjoin2 m in (f + h :|# g + k)
-  (f :&# g) + m        = let (h, k) = unfork2 m in (f + h :&# g + k)
-  JoinL ms  + Join ms' = Join (ms +^ ms')
-  ForkL ms  + Fork ms' = Fork (ms +^ ms')
   JoinL ms  + m = let ms' = unjoin m in Join (ms +^ ms')
   ForkL ms  + m = let ms' = unfork m in Fork (ms +^ ms')
+  (f :|# g) + m        = let (h, k) = unjoin2 m in (f + h :|# g + k)
+  (f :&# g) + m        = let (h, k) = unfork2 m in (f + h :&# g + k)
 
 rowMajIso :: Iso (->) (L s a b) (b (a s))
 rowMajIso = fwd :<-> rev
@@ -92,42 +101,46 @@ rowMajIso = fwd :<-> rev
     rev :: b (a s) -> L s a b
     rev = undefined -- TODO: Write rev for toRowMajIso.
 
-instance (forall r. CartesianR r (:.:) (L s),
-          forall r. CocartesianR r (:.:) (L s),
-          Cartesian (:*:) (L s),
-          Cocartesian (:*:) (L s)
-         ) => Category (L s) where
+instance () => Category (L s) where
   type Obj' (L s) a = V a
   id = undefined                                  -- TODO: Write id
   Scale a   . Scale b   = Scale (a * b)           -- Scale denotation
-  (p :&# q) . m         = (p . m) :&# (q . m)     -- binary product law
-  m         . (p :|# q) = (m . p) :|# (m . q)     -- binary coproduct law
-  (r :|# s) . (p :&# q) = (r . p) + (s . q)       -- biproduct law
+  (p :&# q) . m         = p . m :&# q . m     -- binary product law
+  m         . (p :|# q) = m . p :|# m . q     -- binary coproduct law
+  (r :|# s) . (p :&# q) = r . p + s . q       -- biproduct law
   ForkL ms' . m         = ForkL (fmap (. m) ms')  -- n-ary product law
   m'        . JoinL ms  = JoinL (fmap (m' .) ms)  -- n-ary coproduct law
   JoinL ms' . ForkL ms  = sum (liftR2 (.) ms' ms)   -- biproduct law
 
-instance (forall r. Representable r, Additive s)
+instance (Representable r,Cartesian (:.:) (L s) , Additive s)
       => CartesianR r (:.:) (L s) where
   exs = unfork id
   dups = undefined -- TODO: Write dups
 
-instance (forall r. Representable r, Additive s)
+instance (Representable r, Cartesian (:.:) (L s), Additive s)
       => CocartesianR r (:.:) (L s) where
   ins  = unjoin id
   jams = undefined -- TODO: write jams
 
+-- TODO: Derive Via
 instance (forall r. Representable r, Additive s) => Monoidal (:*:) (L s) where
   f ### g = (inl . f) :|# (inr . g)
 
-instance (forall r. Representable r, Additive s) => MonoidalR r (:.:) (L s) where
-  rmap fs = undefined -- TODO: Write rmap
+-- TODO: Add deriving via capabilities.
+-- Couldn't get constraints to work when defining this instance on the Via
+-- type in Category.hs
+instance (Representable r, Cartesian (:.:) (L s), Additive s) => MonoidalR r (:.:) (L s) where
+  rmap fs = ForkL (fmap (. exr) fs)
 
+-- TODO: Move to Category.hs
+-- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
 instance (forall r. Representable r, Additive s) => Cartesian (:*:) (L s) where
   exl = id :| zero
   exr = zero :| id
   dup = id :&# id
 
+-- TODO: Move to Category.hs
+-- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
 instance (forall r. Representable r, Additive s) => Cocartesian (:*:) (L s) where
   inl = id :&# zero
   inr = zero :& id
