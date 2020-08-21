@@ -115,14 +115,18 @@ instance Category (L s) where
 instance Representable r => CartesianR r (:.:) (L s) where
   exs = unfork id
   dups = undefined -- TODO: Write dups
+-- {-# COMPLETE Fork :: L #-} -- Orphan COMPLETE pragmas not supported
+-- (These are defined in Category.hs)
 
 instance Representable r => CocartesianR r (:.:) (L s) where
   ins  = unjoin id
   jams = undefined -- TODO: Write jams
+-- {-# COMPLETE Join :: L #-} -- See complete pragma above
 
 -- TODO: Derive Via
 instance Additive s => Monoidal (:*:) (L s) where
   f ### g = (inl . f) :|# (inr . g)
+-- deriving via (ViaCartesian (:*:) (L s)) instance Monoidal (:*:) (L s)
 
 -- TODO: Add deriving via capabilities.
 -- Couldn't get constraints to work when defining this instance on the Via
@@ -145,6 +149,7 @@ instance Additive s => Cartesian (:*:) (L s) where
   exl = id :| zero
   exr = zero :| id
   dup = id :&# id
+-- {-# COMPLETE (:&) :: L #-} -- See complete pragma above
 
 -- TODO: Move to Category.hs
 -- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
@@ -152,6 +157,7 @@ instance Additive s => Cocartesian (:*:) (L s) where
   inl = id :&# zero
   inr = zero :& id
   jam = id :|# id
+-- {-# COMPLETE (:|) :: L #-} -- See complete pragma above
 
 instance Additive s => Biproduct (:*:) (L s)
 

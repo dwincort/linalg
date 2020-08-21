@@ -198,9 +198,12 @@ instance Category k => Category (ViaCartesian p k) where
   ViaCartesian g . ViaCartesian f = ViaCartesian (g . f)
 instance Cartesian p k => Monoidal p (ViaCartesian p k) where
   f ### g = (f . exl) &&& (g . exr)
-instance (Category k, Representable r, CartesianR r p (ViaCartesian p k)) => MonoidalR r p (ViaCartesian p k) where
+instance (Representable r, CartesianR r p k) => MonoidalR r p (ViaCartesian p k) where
   rmap fs = fork (liftR2 (.) fs exs)
 deriving instance Cartesian p k => Cartesian p (ViaCartesian p k)
+instance (CartesianR r p k, Representable r) => CartesianR r p (ViaCartesian p k) where
+  exs = ViaCartesian <$> exs
+  dups = ViaCartesian dups
 
 instance Cartesian p k => Associative p (ViaCartesian p k) where
   lassoc = second exl &&& (exr . exr)
@@ -217,9 +220,12 @@ instance Category k => Category (ViaCocartesian p k) where
   ViaCocartesian g . ViaCocartesian f = ViaCocartesian (g . f)
 instance Cocartesian co k => Monoidal co (ViaCocartesian co k) where
   f ### g = (inl . f) ||| (inr . g)
-instance (Category k, Representable r, CocartesianR r p (ViaCocartesian p k)) => MonoidalR r p (ViaCocartesian p k) where
+instance (CocartesianR r p k, Representable r) => MonoidalR r p (ViaCocartesian p k) where
   rmap fs = join (liftR2 (.) ins fs)
 deriving instance Cocartesian co k => Cocartesian co (ViaCocartesian co k)
+instance (CocartesianR r p k, Representable r) => CocartesianR r p (ViaCocartesian p k) where
+  ins = ViaCocartesian <$> ins
+  jams = ViaCocartesian jams
 
 instance Cocartesian co k => Associative co (ViaCocartesian co k) where
   lassoc = inl.inl ||| (inl.inr ||| inr)
