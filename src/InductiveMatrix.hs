@@ -1,3 +1,5 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 {- |
 "Inductive matrices", as in "Type Your Matrices for Great Good: A Haskell
 Library of Typed Matrices and Applications (Functional Pearl)" Armando Santos
@@ -79,15 +81,13 @@ instance LinearMap L where
 --
 -- And then it will ask for Representable r, for which we need to give
 -- a quantified constrain: forall r. Representable r.
-instance ( Additive s
-         )
-          => Additive (L s f g) where
+instance Additive s => Additive (L s f g) where
   zero                 = isoRev rowMajIso . isoFwd rowMajIso $ zero
   Scale s + Scale s'   = Scale (s + s')
-  JoinL ms  + m = let ms' = unjoin m in Join (ms +^ ms')
-  ForkL ms  + m = let ms' = unfork m in Fork (ms +^ ms')
-  (f :|# g) + m        = let (h, k) = unjoin2 m in (f + h :|# g + k)
-  (f :&# g) + m        = let (h, k) = unfork2 m in (f + h :&# g + k)
+  (f :|# g) + (h :| k) = (f + h) :| (g + k)
+  (f :&# g) + (h :& k) = (f + h) :& (g + k)
+  ForkL ms  + Fork ms' = Fork (ms +^ ms')
+  JoinL ms  + Join ms' = Join (ms +^ ms')
 
 rowMajIso :: Iso (->) (L s a b) (b (a s))
 rowMajIso = fwd :<-> rev
@@ -105,20 +105,18 @@ instance Category (L s) where
   type Obj' (L s) a = V a
   id = undefined                                  -- TODO: Write id
   Scale a   . Scale b   = Scale (a * b)           -- Scale denotation
-  (p :&# q) . m         = p . m :&# q . m     -- binary product law
-  m         . (p :|# q) = m . p :|# m . q     -- binary coproduct law
-  (r :|# s) . (p :&# q) = r . p + s . q       -- biproduct law
+  (p :&# q) . m         = p . m :&# q . m         -- binary product law
+  m         . (p :|# q) = m . p :|# m . q         -- binary coproduct law
+  (r :|# s) . (p :&# q) = r . p + s . q           -- biproduct law
   ForkL ms' . m         = ForkL (fmap (. m) ms')  -- n-ary product law
   m'        . JoinL ms  = JoinL (fmap (m' .) ms)  -- n-ary coproduct law
-  JoinL ms' . ForkL ms  = sum (liftR2 (.) ms' ms)   -- biproduct law
+  JoinL ms' . ForkL ms  = sum (liftR2 (.) ms' ms) -- biproduct law
 
-instance (Representable r, Cartesian (:.:) (L s) , Additive s)
-      => CartesianR r (:.:) (L s) where
+instance Representable r => CartesianR r (:.:) (L s) where
   exs = unfork id
   dups = undefined -- TODO: Write dups
 
-instance (Representable r, Cartesian (:.:) (L s), Additive s)
-      => CocartesianR r (:.:) (L s) where
+instance Representable r => CocartesianR r (:.:) (L s) where
   ins  = unjoin id
   jams = undefined -- TODO: Write jams
 
@@ -129,8 +127,17 @@ instance Additive s => Monoidal (:*:) (L s) where
 -- TODO: Add deriving via capabilities.
 -- Couldn't get constraints to work when defining this instance on the Via
 -- type in Category.hs
-instance (Representable r, Cartesian (:.:) (L s)) => MonoidalR r (:.:) (L s) where
-  rmap fs = ForkL (fmap (. exr) fs)
+instance Representable r => MonoidalR r (:.:) (L s) where
+  rmap fs = ForkL (liftR2 (.) fs exs)
+
+-- Can't derive via (why?)
+-- Error:
+-- [bios] [E] The exact Name ‘k1’ is not in scope
+--   Probable cause: you used a unique Template Haskell name (NameU), 
+--   perhaps via newName, but did not bind it
+--   If that's it, then -ddump-splices might be useful
+--
+-- deriving via (ViaCartesian (:.:) (L s)) instance () => (MonoidalR r (:.:) (L s))
 
 -- TODO: Move to Category.hs
 -- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions

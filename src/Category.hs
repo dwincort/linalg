@@ -170,7 +170,6 @@ type Bicartesian p co k = (Cartesian p k, Cocartesian co k)
 -- because there are more laws.
 class Bicartesian p p k => Biproduct p k
 
-
 class (Category k, ObjBin e k) => Closed e k where
   (^^^) :: Obj4 k a b c d => (a `k` b) -> (d `k` c) -> ((c `e` a) `k` (d `e` b))
 
@@ -197,8 +196,10 @@ instance Category k => Category (ViaCartesian p k) where
   type Obj' (ViaCartesian p k) a = Obj k a
   id = ViaCartesian id
   ViaCartesian g . ViaCartesian f = ViaCartesian (g . f)
-instance (Category k, Cartesian p (ViaCartesian p k)) => Monoidal p (ViaCartesian p k) where
+instance Cartesian p k => Monoidal p (ViaCartesian p k) where
   f ### g = (f . exl) &&& (g . exr)
+instance (Category k, Representable r, CartesianR r p (ViaCartesian p k)) => MonoidalR r p (ViaCartesian p k) where
+  rmap fs = fork (liftR2 (.) fs exs)
 deriving instance Cartesian p k => Cartesian p (ViaCartesian p k)
 
 instance Cartesian p k => Associative p (ViaCartesian p k) where
@@ -214,8 +215,10 @@ instance Category k => Category (ViaCocartesian p k) where
   type Obj' (ViaCocartesian p k) a = Obj k a
   id = ViaCocartesian id
   ViaCocartesian g . ViaCocartesian f = ViaCocartesian (g . f)
-instance (Category k, Cocartesian co (ViaCocartesian co k)) => Monoidal co (ViaCocartesian co k) where
+instance Cocartesian co k => Monoidal co (ViaCocartesian co k) where
   f ### g = (inl . f) ||| (inr . g)
+instance (Category k, Representable r, CocartesianR r p (ViaCocartesian p k)) => MonoidalR r p (ViaCocartesian p k) where
+  rmap fs = join (liftR2 (.) ins fs)
 deriving instance Cocartesian co k => Cocartesian co (ViaCocartesian co k)
 
 instance Cocartesian co k => Associative co (ViaCocartesian co k) where
