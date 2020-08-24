@@ -146,17 +146,15 @@ instance Representable r => MonoidalR r (:.:) (L s) where
 -- TODO: Move to Category.hs
 -- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
 instance Additive s => Cartesian (:*:) (L s) where
-  exl = id :| zero
-  exr = zero :| id
-  dup = id :&# id
+  exl = id :|# zero
+  exr = zero :|# id
 -- {-# COMPLETE (:&) :: L #-} -- See complete pragma above
 
 -- TODO: Move to Category.hs
 -- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
 instance Additive s => Cocartesian (:*:) (L s) where
   inl = id :&# zero
-  inr = zero :& id
-  jam = id :|# id
+  inr = zero :&# id
 -- {-# COMPLETE (:|) :: L #-} -- See complete pragma above
 
 instance Additive s => Biproduct (:*:) (L s)
