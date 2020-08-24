@@ -83,9 +83,11 @@ second :: (Monoidal p k, Obj3 k a b d) => (b `k` d) -> ((a `p` b) `k` (a `p` d))
 second g = id ### g
 
 class Monoidal p k => Cartesian p k where
-  {-# MINIMAL exl, exr #-}
+  {-# MINIMAL exl, exr, ((&&&) | dup) #-}
   exl :: Obj2 k a b => (a `p` b) `k` a
+  exl = fst $ unfork2 id
   exr :: Obj2 k a b => (a `p` b) `k` b
+  exr = snd $ unfork2 id
   dup :: Obj  k a   => a `k` (a `p` a)
   dup = id &&& id
   infixr 3 &&&
@@ -132,9 +134,11 @@ class Symmetric p k where
 -- <https://hackage.haskell.org/package/categories/docs/Control-Category-Monoidal.html>.
 
 class Monoidal co k => Cocartesian co k where
-  {-# MINIMAL inl, inr #-}
+  {-# MINIMAL inl, inr, ((|||) | jam) #-}
   inl :: Obj2 k a b => a `k` (a `co` b)
+  inl = fst $ unjoin2 id
   inr :: Obj2 k a b => b `k` (a `co` b)
+  inr = snd $ unjoin2 id
   jam :: Obj  k a   => (a `co` a) `k` a
   jam = id ||| id
   -- Binary join
