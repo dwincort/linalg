@@ -148,6 +148,7 @@ instance Representable r => MonoidalR r (:.:) (L s) where
 instance Additive s => Cartesian (:*:) (L s) where
   exl = id :|# zero
   exr = zero :|# id
+  (&&&) = (:&#)
 -- {-# COMPLETE (:&) :: L #-} -- See complete pragma above
 
 -- TODO: Move to Category.hs
@@ -155,6 +156,7 @@ instance Additive s => Cartesian (:*:) (L s) where
 instance Additive s => Cocartesian (:*:) (L s) where
   inl = id :&# zero
   inr = zero :&# id
+  (|||) = (:|#)
 -- {-# COMPLETE (:|) :: L #-} -- See complete pragma above
 
 instance Additive s => Biproduct (:*:) (L s)
