@@ -1,3 +1,4 @@
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 {- |
@@ -24,7 +25,10 @@ import Category.Isomorphism
 infixr 3 :&#
 infixr 2 :|#
 
-type V = Representable
+type V' a = (Representable a, Eq (Rep a))
+
+class    V' a => V a
+instance V' a => V a
 
 -- | Compositional linear map representation.
 data L :: * -> (* -> *) -> (* -> *) -> * where
@@ -65,23 +69,9 @@ instance LinearMap L where
 -- | Instances (all deducible from denotational homomorphisms)
 -------------------------------------------------------------------------------
 
--- TODO: Make it compile.
---
--- Does not compile!!!!
--- See:
---
--- Could not deduce (Cartesian (:.:) (L s))
---   arising from a use of ‘unjoin’
---
--- And if we add the constrain we need to add UndecidableInstances:
---
--- The constraint ‘Cartesian (:.:) (L s)’
---  is no smaller than the instance head ‘Additive (L s f g)’
---  (Use UndecidableInstances to permit this)
---
--- And then it will ask for Representable r, for which we need to give
--- a quantified constrain: forall r. Representable r.
-instance Additive s => Additive (L s f g) where
+-- This gives non-exhaustive pattern matching because pattern synonyms
+-- cannot be made complete
+instance Semiring s => Additive (L s f g) where
   zero                 = isoRev rowMajIso . isoFwd rowMajIso $ zero
   Scale s + Scale s'   = Scale (s + s')
   (f :|# g) + (h :| k) = (f + h) :| (g + k)
@@ -101,9 +91,13 @@ rowMajIso = fwd :<-> rev
     rev :: b (a s) -> L s a b
     rev = undefined -- TODO: Write rev for toRowMajIso.
 
-instance Category (L s) where
+diagRep :: (Representable h, Eq (Rep h)) => a -> h a -> h (h a)
+diagRep dflt as =
+  tabulate (\ i -> tabulate (\ j -> if i == j then as `index` i else dflt))
+
+instance Semiring s => Category (L s) where
   type Obj' (L s) a = V a
-  id = undefined                                  -- TODO: Write id
+  id = isoRev rowMajIso (diagRep zero (pureRep one))
   Scale a   . Scale b   = Scale (a * b)           -- Scale denotation
   (p :&# q) . m         = p . m :&# q . m         -- binary product law
   m         . (p :|# q) = m . p :|# m . q         -- binary coproduct law
@@ -112,32 +106,36 @@ instance Category (L s) where
   m'        . JoinL ms  = JoinL (fmap (m' .) ms)  -- n-ary coproduct law
   JoinL ms' . ForkL ms  = sum (liftR2 (.) ms' ms) -- biproduct law
 
-instance Representable r => CartesianR r (:.:) (L s) where
+instance (Representable r, Eq (Rep r), Semiring s) => CartesianR r (:.:) (L s) where
   fork = ForkL
-  unfork f = undefined -- TODO: Write unfork
+  unfork (p :|# q)  = liftR2 (:|#) (unfork p) (unfork q)
+  unfork (ForkL ms) = ms
+  unfork (JoinL ms) = JoinL <$> distribute (unfork <$> ms)
 -- {-# COMPLETE Fork :: L #-} -- Orphan COMPLETE pragmas not supported
 -- (These are defined in Category.hs)
 
-instance Representable r => CocartesianR r (:.:) (L s) where
-  join = undefined -- JoinL -- Needs Eq (Rep r) and UndecidableInstances consequentially
-  unjoin f = undefined -- TODO: Write unjoin
+instance (Representable r, Eq (Rep r), Foldable r, Semiring s) => CocartesianR r (:.:) (L s) where
+  join = JoinL -- Needs Eq (Rep r) and UndecidableInstances consequentially
+  unjoin (p :&# p') = liftR2 (:&#) (unjoin p) (unjoin p')
+  unjoin (JoinL ms) = ms
+  unjoin (ForkL ms) = fmap ForkL (distribute (fmap unjoin ms))
 -- {-# COMPLETE Join :: L #-} -- See complete pragma above
 
--- TODO: Derive Via
-instance Additive s => Monoidal (:*:) (L s) where
+-- TODO: Add deriving capabilities
+instance Semiring s => Monoidal (:*:) (L s) where
   f ### g = (inl . f) :|# (inr . g)
 -- deriving via (ViaCartesian (:*:) (L s)) instance Monoidal (:*:) (L s)
 
 -- TODO: Add deriving via capabilities.
 -- Couldn't get constraints to work when defining this instance on the Via
 -- type in Category.hs
-instance Representable r => MonoidalR r (:.:) (L s) where
+instance (Representable r, Eq (Rep r), Semiring s) => MonoidalR r (:.:) (L s) where
   rmap fs = ForkL (liftR2 (.) fs exs)
 
 -- Can't derive via (why?)
 -- Error:
 -- [bios] [E] The exact Name ‘k1’ is not in scope
---   Probable cause: you used a unique Template Haskell name (NameU), 
+--   Probable cause: you used a unique Template Haskell name (NameU),
 --   perhaps via newName, but did not bind it
 --   If that's it, then -ddump-splices might be useful
 --
@@ -145,17 +143,17 @@ instance Representable r => MonoidalR r (:.:) (L s) where
 
 -- TODO: Move to Category.hs
 -- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
-instance Additive s => Cartesian (:*:) (L s) where
+instance Semiring s => Cartesian (:*:) (L s) where
   (&&&) = (:&#)
   unfork2 f = ((id :|# zero) . f, (zero :|# id) . f)
 -- {-# COMPLETE (:&) :: L #-} -- See complete pragma above
 
 -- TODO: Move to Category.hs
 -- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
-instance Additive s => Cocartesian (:*:) (L s) where
+instance Semiring s => Cocartesian (:*:) (L s) where
   (|||) = (:|#)
   unjoin2 f = (f . (id :&# zero), f . (zero :&# id))
 -- {-# COMPLETE (:|) :: L #-} -- See complete pragma above
 
-instance Additive s => Biproduct (:*:) (L s)
+instance Semiring s => Biproduct (:*:) (L s)
 
