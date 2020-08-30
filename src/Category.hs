@@ -83,7 +83,7 @@ second :: (Monoidal p k, Obj3 k a b d) => (b `k` d) -> ((a `p` b) `k` (a `p` d))
 second g = id ### g
 
 class Monoidal p k => Cartesian p k where
-  {-# MINIMAL exl, exr, ((&&&) | dup) #-}
+  {-# MINIMAL ((exl, exr) | unfork2), ((&&&) | dup) #-}
   exl :: Obj2 k a b => (a `p` b) `k` a
   exl = fst $ unfork2 id
   exr :: Obj2 k a b => (a `p` b) `k` b
@@ -134,7 +134,7 @@ class Symmetric p k where
 -- <https://hackage.haskell.org/package/categories/docs/Control-Category-Monoidal.html>.
 
 class Monoidal co k => Cocartesian co k where
-  {-# MINIMAL inl, inr, ((|||) | jam) #-}
+  {-# MINIMAL ((inl, inr) | unjoin2), ((|||) | jam) #-}
   inl :: Obj2 k a b => a `k` (a `co` b)
   inl = fst $ unjoin2 id
   inr :: Obj2 k a b => b `k` (a `co` b)
@@ -238,20 +238,22 @@ instance Cocartesian co k => Symmetric co (ViaCocartesian co k) where
 
 type ObjR' r p k = ((forall z. Obj k z => Obj k (p r z)) :: Constraint)
 
-class    (Functor r, ObjR' r p k) => ObjR r p k
-instance (Functor r, ObjR' r p k) => ObjR r p k
+class    (Representable r, ObjR' r p k) => ObjR r p k
+instance (Representable r, ObjR' r p k) => ObjR r p k
 
 class (Category k, ObjR r p k) => MonoidalR r p k where
   -- | n-ary version of '(###)'
   rmap :: Obj2 k a b => r (a `k` b) -> (p r a `k` p r b)
 
 class MonoidalR r p k => CartesianR r p k where
-  {-# MINIMAL exs, dups #-}
+  {-# MINIMAL ((exs | unfork), (fork | dups)) #-}
   exs  :: Obj k a => r (p r a `k` a)
+  exs = unfork id
   dups :: Obj k a => a `k` p r a
+  dups = fork (pureRep id)
   fork :: Obj2 k a c => r (a `k` c) -> (a `k` p r c)
   fork fs = rmap fs . dups
-  unfork :: Obj2 k a b => a `k` (p r b) -> r (a `k` b)
+  unfork :: Obj2 k a b => a `k` p r b -> r (a `k` b)
   unfork f = (. f) <$> exs
 
 pattern Fork :: (CartesianR h p k, Obj2 k f g) => h (k f g) -> k f (p h g)
@@ -262,9 +264,11 @@ pattern Fork ms <- (unfork -> ms) where Fork = fork
 
 -- N-ary biproducts
 class MonoidalR r co k => CocartesianR r co k where
-  {-# MINIMAL ins, jams #-}
+  {-# MINIMAL ((ins | unjoin), (join | jams)) #-}
   ins  :: Obj k a => r (a `k` co r a)
+  ins = unjoin id
   jams :: Obj k a => co r a `k` a
+  jams = join (pureRep id)
   join :: Obj2 k a b => r (a `k` b) -> co r a `k` b
   join fs = jams . rmap fs
   unjoin :: Obj2 k a b => co r a `k` b -> r (a `k` b)

@@ -113,14 +113,14 @@ instance Category (L s) where
   JoinL ms' . ForkL ms  = sum (liftR2 (.) ms' ms) -- biproduct law
 
 instance Representable r => CartesianR r (:.:) (L s) where
-  exs = unfork id
-  dups = undefined -- TODO: Write dups
+  fork = ForkL
+  unfork f = undefined -- TODO: Write unfork
 -- {-# COMPLETE Fork :: L #-} -- Orphan COMPLETE pragmas not supported
 -- (These are defined in Category.hs)
 
 instance Representable r => CocartesianR r (:.:) (L s) where
-  ins  = unjoin id
-  jams = undefined -- TODO: Write jams
+  join = undefined -- JoinL -- Needs Eq (Rep r) and UndecidableInstances consequentially
+  unjoin f = undefined -- TODO: Write unjoin
 -- {-# COMPLETE Join :: L #-} -- See complete pragma above
 
 -- TODO: Derive Via
@@ -146,17 +146,15 @@ instance Representable r => MonoidalR r (:.:) (L s) where
 -- TODO: Move to Category.hs
 -- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
 instance Additive s => Cartesian (:*:) (L s) where
-  exl = id :|# zero
-  exr = zero :|# id
   (&&&) = (:&#)
+  unfork2 f = ((id :|# zero) . f, (zero :|# id) . f)
 -- {-# COMPLETE (:&) :: L #-} -- See complete pragma above
 
 -- TODO: Move to Category.hs
 -- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
 instance Additive s => Cocartesian (:*:) (L s) where
-  inl = id :&# zero
-  inr = zero :&# id
   (|||) = (:|#)
+  unjoin2 f = (f . (id :&# zero), f . (zero :&# id))
 -- {-# COMPLETE (:|) :: L #-} -- See complete pragma above
 
 instance Additive s => Biproduct (:*:) (L s)
