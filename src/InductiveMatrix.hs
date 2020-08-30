@@ -106,7 +106,7 @@ instance Semiring s => Category (L s) where
   m'        . JoinL ms  = JoinL (fmap (m' .) ms)  -- n-ary coproduct law
   JoinL ms' . ForkL ms  = sum (liftR2 (.) ms' ms) -- biproduct law
 
-instance (Representable r, Eq (Rep r), Semiring s) => CartesianR r (:.:) (L s) where
+instance (V r, Semiring s) => CartesianR r (:.:) (L s) where
   fork = ForkL
   unfork (p :|# q)  = liftR2 (:|#) (unfork p) (unfork q)
   unfork (ForkL ms) = ms
@@ -114,8 +114,8 @@ instance (Representable r, Eq (Rep r), Semiring s) => CartesianR r (:.:) (L s) w
 -- {-# COMPLETE Fork :: L #-} -- Orphan COMPLETE pragmas not supported
 -- (These are defined in Category.hs)
 
-instance (Representable r, Eq (Rep r), Foldable r, Semiring s) => CocartesianR r (:.:) (L s) where
-  join = JoinL -- Needs Eq (Rep r) and UndecidableInstances consequentially
+instance (V r, Foldable r, Semiring s) => CocartesianR r (:.:) (L s) where
+  join = JoinL
   unjoin (p :&# p') = liftR2 (:&#) (unjoin p) (unjoin p')
   unjoin (JoinL ms) = ms
   unjoin (ForkL ms) = fmap ForkL (distribute (fmap unjoin ms))
