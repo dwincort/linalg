@@ -1,5 +1,4 @@
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 {- |
 "Inductive matrices", as in "Type Your Matrices for Great Good: A Haskell
@@ -14,6 +13,7 @@ module InductiveMatrix where
 
 import CatPrelude
 
+import Control.Arrow ((***))
 import qualified LinearFunction as F
 import LinearFunction hiding (L)
 import Category.Isomorphism
@@ -71,8 +71,8 @@ instance LinearMap L where
 
 -- This gives non-exhaustive pattern matching because pattern synonyms
 -- cannot be made complete
-instance Semiring s => Additive (L s f g) where
-  zero                 = isoRev rowMajIso . isoFwd rowMajIso $ zero
+instance (Representable f, Representable g, Semiring s) => Additive (L s f g) where
+  zero                 = isoRev rowMajIso (pureRep (pureRep zero))
   Scale s + Scale s'   = Scale (s + s')
   (f :|# g) + (h :| k) = (f + h) :| (g + k)
   (f :&# g) + (h :& k) = (f + h) :& (g + k)
@@ -129,7 +129,7 @@ instance Semiring s => Monoidal (:*:) (L s) where
 -- TODO: Add deriving via capabilities.
 -- Couldn't get constraints to work when defining this instance on the Via
 -- type in Category.hs
-instance (Representable r, Eq (Rep r), Semiring s) => MonoidalR r (:.:) (L s) where
+instance (V r, Semiring s) => MonoidalR r (:.:) (L s) where
   rmap fs = ForkL (liftR2 (.) fs exs)
 
 -- Can't derive via (why?)
@@ -145,14 +145,18 @@ instance (Representable r, Eq (Rep r), Semiring s) => MonoidalR r (:.:) (L s) wh
 -- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
 instance Semiring s => Cartesian (:*:) (L s) where
   (&&&) = (:&#)
-  unfork2 f = ((id :|# zero) . f, (zero :|# id) . f)
+  unfork2 (p :&# q) = (p,q)
+  unfork2 ((unfork2 -> (p,q)) :|# (unfork2 -> (r,s))) = (p :|# r, q :|# s)
+  unfork2 (JoinL ms) = (JoinL *** JoinL) (unzip (unfork2 <$> ms))
 -- {-# COMPLETE (:&) :: L #-} -- See complete pragma above
 
 -- TODO: Move to Category.hs
 -- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
 instance Semiring s => Cocartesian (:*:) (L s) where
   (|||) = (:|#)
-  unjoin2 f = (f . (id :&# zero), f . (zero :&# id))
+  unjoin2 (p :|# q) = (p,q)
+  unjoin2 ((unjoin2 -> (p,q)) :&# (unjoin2 -> (r,s))) = (p :& r, q :& s)
+  unjoin2 (ForkL ms) = (ForkL *** ForkL) (unzip (unjoin2 <$> ms))
 -- {-# COMPLETE (:|) :: L #-} -- See complete pragma above
 
 instance Semiring s => Biproduct (:*:) (L s)
