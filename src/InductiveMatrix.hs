@@ -147,8 +147,8 @@ pattern Join :: (CocartesianR h p k, Obj2 k f g) => h (k f g) -> k (p h f) g
 pattern Join ms <- (unjoin -> ms) where Join = join
 {-# COMPLETE Join :: L #-}
 
--- instance Semiring s => Monoidal (:*:) (L s) where
---   f ### g = (inl . f) :|# (inr . g)
+instance Semiring s => Monoidal (:*:) (L s) where
+  f ### g = (inl . f) :|# (inr . g)
 
 -- deriving via (ViaCocartesian (:*:) (L s)) instance Monoidal (:*:) (L s)
 
