@@ -25,25 +25,26 @@ import Category.Isomorphism
 infixr 3 :&#
 infixr 2 :|#
 
-type Representational r =
-  ((forall p q. Coercible p q => Coercible (r p) (r q)) :: Constraint)
-
-class    (Representable r, Representational r) => Representable' r
-instance (Representable r, Representational r) => Representable' r
-
-type V' a = (Representable' a, Eq (Rep a))
+type V' a = (Representable a, Eq (Rep a))
 
 class    V' a => V a
 instance V' a => V a
+
+-- For deriving via. See https://github.com/conal/linalg/pull/54#discussion_r481393523
+type Representational1 r =
+  ((forall p q. Coercible p q => Coercible (r p) (r q)) :: Constraint)
+
+class    (V r, Representational1 r) => VR r
+instance (V r, Representational1 r) => VR r
 
 -- | Compositional linear map representation.
 data L :: * -> (* -> *) -> (* -> *) -> * where
   Scale :: Semiring s => s -> L s Par1 Par1
   (:|#) :: (C3 V a b c, Additive s) => L s a c -> L s b c -> L s (a :*: b) c
   (:&#) :: C3 V a c k => L s a c -> L s a k -> L s a (c :*: k)
-  JoinL :: (C2 V a b, Representable' r, Eq (Rep r), Foldable r, Additive s)
+  JoinL :: (C2 V a b, VR r, Foldable r, Additive s)
         => r (L s a b) -> L s (r :.: a) b
-  ForkL :: C3 V a b r => r (L s a b) -> L s a (r :.: b)
+  ForkL :: (C2 V a b, VR r) => r (L s a b) -> L s a (r :.: b)
 
 instance LinearMap L where
   mu = fwd :<-> rev
@@ -75,7 +76,7 @@ instance LinearMap L where
 -- | Instances (all deducible from denotational homomorphisms)
 -------------------------------------------------------------------------------
 
-instance (Representable' f, Representable' g, Semiring s) => Additive (L s f g) where
+instance (Representable f, Representable g, Semiring s) => Additive (L s f g) where
   zero = isoRev rowMajIso (pureRep (pureRep zero))
   Scale s   + Scale s' = Scale (s + s')
   (f :|# g) + (h :| k) = (f + h) :| (g + k)
@@ -134,7 +135,7 @@ pattern f :| g <- (unjoin2 -> (f,g)) where (:|) = (|||)
 
 instance Semiring s => Biproduct (:*:) (L s)
 
-instance (V r, Semiring s) => CartesianR r (:.:) (L s) where
+instance (VR r, Semiring s) => CartesianR r (:.:) (L s) where
   fork = ForkL
   unfork (Fork fs :|# Fork gs) = liftR2 (:|#) fs gs
   unfork (ForkL fs)            = fs
@@ -144,7 +145,7 @@ pattern Fork :: (CartesianR h p k, Obj2 k f g) => h (k f g) -> k f (p h g)
 pattern Fork ms <- (unfork -> ms) where Fork = fork
 {-# COMPLETE Fork :: L #-}
 
-instance (V r, Foldable r, Semiring s) => CocartesianR r (:.:) (L s) where
+instance (VR r, Foldable r, Semiring s) => CocartesianR r (:.:) (L s) where
   join = JoinL
   unjoin (Join fs :&# Join gs) = liftR2 (:&#) fs gs
   unjoin (JoinL fs)            = fs
@@ -154,26 +155,7 @@ pattern Join :: (CocartesianR h p k, Obj2 k f g) => h (k f g) -> k (p h f) g
 pattern Join ms <- (unjoin -> ms) where Join = join
 {-# COMPLETE Join :: L #-}
 
-instance Semiring s => Monoidal (:*:) (L s) where
-  -- ...
-
--- • Couldn't match type ‘p’ with ‘q’
---     arising from the superclasses of an instance declaration
---   ‘p’ is a rigid type variable bound by
---     a quantified context
---     at src/InductiveMatrix.hs:1:1
---   ‘q’ is a rigid type variable bound by
---     a quantified context
---     at src/InductiveMatrix.hs:1:1
--- • In the instance declaration for ‘Monoidal (:*:) (L s)’
-
--- instance Semiring s => Monoidal (:*:) (L s) where
---   f ### g = (inl . f) :|# (inr . g)
-
--- deriving via ViaCocartesian (L s) instance Semiring s => Monoidal (:*:) (L s)
-
--- instance (V r, Semiring s) => MonoidalR r (:.:) (L s) where
---   rmap fs = ForkL (liftR2 (.) fs exs)
+deriving via ViaCocartesian (L s) instance Semiring s => Monoidal (:*:) (L s)
 
 deriving via ViaCartesian (L s)
-  instance (V' r, Semiring s) => MonoidalR r (:.:) (L s)
+  instance (VR r, Semiring s) => MonoidalR r (:.:) (L s)
