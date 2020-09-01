@@ -68,8 +68,6 @@ instance LinearMap L where
 -- | Instances (all deducible from denotational homomorphisms)
 -------------------------------------------------------------------------------
 
--- This gives non-exhaustive pattern matching because pattern synonyms
--- cannot be made complete
 instance (Representable f, Representable g, Semiring s) => Additive (L s f g) where
   zero                 = isoRev rowMajIso (pureRep (pureRep zero))
   Scale s + Scale s'   = Scale (s + s')
@@ -110,15 +108,20 @@ instance (V r, Semiring s) => CartesianR r (:.:) (L s) where
   unfork (p :|# q)  = liftR2 (:|#) (unfork p) (unfork q)
   unfork (ForkL ms) = ms
   unfork (JoinL ms) = JoinL <$> distribute (unfork <$> ms)
--- {-# COMPLETE Fork :: L #-} -- Orphan COMPLETE pragmas not supported
--- (These are defined in Category.hs)
+
+pattern Fork :: (CartesianR h p k, Obj2 k f g) => h (k f g) -> k f (p h g)
+pattern Fork ms <- (unfork -> ms) where Fork = fork
+{-# COMPLETE Fork :: L #-}
 
 instance (V r, Foldable r, Semiring s) => CocartesianR r (:.:) (L s) where
   join = JoinL
   unjoin (p :&# p') = liftR2 (:&#) (unjoin p) (unjoin p')
   unjoin (JoinL ms) = ms
   unjoin (ForkL ms) = fmap ForkL (distribute (fmap unjoin ms))
--- {-# COMPLETE Join :: L #-} -- See complete pragma above
+
+pattern Join :: (CocartesianR h p k, Obj2 k f g) => h (k f g) -> k (p h f) g
+pattern Join ms <- (unjoin -> ms) where Join = join
+{-# COMPLETE Join :: L #-} -- See (:&) above
 
 -- TODO: Add deriving capabilities
 instance Semiring s => Monoidal (:*:) (L s) where
@@ -147,7 +150,11 @@ instance Semiring s => Cartesian (:*:) (L s) where
   unfork2 (p :&# q) = (p,q)
   unfork2 ((unfork2 -> (p,q)) :|# (unfork2 -> (r,s))) = (p :|# r, q :|# s)
   unfork2 (JoinL ms) = (JoinL ### JoinL) (unzip (unfork2 <$> ms))
--- {-# COMPLETE (:&) :: L #-} -- See complete pragma above
+
+pattern (:&) :: (Cartesian p k, Obj3 k a c d)
+             => (a `k` c) -> (a `k` d) -> (a `k` (c `p` d))
+pattern f :& g <- (unfork2 -> (f,g)) where (:&) = (&&&)
+{-# COMPLETE (:&) :: L #-}
 
 -- TODO: Move to Category.hs
 -- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
@@ -156,6 +163,10 @@ instance Semiring s => Cocartesian (:*:) (L s) where
   unjoin2 (p :|# q) = (p,q)
   unjoin2 ((unjoin2 -> (p,q)) :&# (unjoin2 -> (r,s))) = (p :& r, q :& s)
   unjoin2 (ForkL ms) = (ForkL ### ForkL) (unzip (unjoin2 <$> ms))
--- {-# COMPLETE (:|) :: L #-} -- See complete pragma above
+
+pattern (:|) :: (Cocartesian co k, Obj3 k a b c)
+             => (a `k` c) -> (b `k` c) -> ((a `co` b) `k` c)
+pattern f :| g <- (unjoin2 -> (f,g)) where (:|) = (|||)
+{-# COMPLETE (:|) :: L #-}
 
 instance Semiring s => Biproduct (:*:) (L s)

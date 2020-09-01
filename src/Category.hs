@@ -104,9 +104,9 @@ fork2 = uncurry (&&&)
 
 -- Exercise: Prove that uncurry (&&&) and unfork2 form an isomorphism.
 
-pattern (:&) :: (Cartesian p k, Obj3 k a c d)
-             => (a `k` c) -> (a `k` d) -> (a `k` (c `p` d))
-pattern f :& g <- (unfork2 -> (f,g)) where (:&) = (&&&)
+-- pattern (:&) :: (Cartesian p k, Obj3 k a c d)
+--              => (a `k` c) -> (a `k` d) -> (a `k` (c `p` d))
+-- pattern f :& g <- (unfork2 -> (f,g)) where (:&) = (&&&)
 -- {-# complete (:&) #-}
 
 -- GHC error:
@@ -155,9 +155,9 @@ join2 = uncurry (|||)
 
 -- Exercise: Prove that uncurry (|||) and unjoin2 form an isomorphism.
 
-pattern (:|) :: (Cocartesian co k, Obj3 k a b c)
-             => (a `k` c) -> (b `k` c) -> ((a `co` b) `k` c)
-pattern f :| g <- (unjoin2 -> (f,g)) where (:|) = (|||)
+-- pattern (:|) :: (Cocartesian co k, Obj3 k a b c)
+--              => (a `k` c) -> (b `k` c) -> ((a `co` b) `k` c)
+-- pattern f :| g <- (unjoin2 -> (f,g)) where (:|) = (|||)
 -- {-# complete (:|) #-}  -- See (:&) above
 
 type Bicartesian p co k = (Cartesian p k, Cocartesian co k)
@@ -212,8 +212,8 @@ class MonoidalR r p k => CartesianR r p k where
   unfork :: Obj2 k a b => a `k` p r b -> r (a `k` b)
   unfork f = (. f) <$> exs
 
-pattern Fork :: (CartesianR h p k, Obj2 k f g) => h (k f g) -> k f (p h g)
-pattern Fork ms <- (unfork -> ms) where Fork = fork
+-- pattern Fork :: (CartesianR h p k, Obj2 k f g) => h (k f g) -> k f (p h g)
+-- pattern Fork ms <- (unfork -> ms) where Fork = fork
 -- {-# complete Fork #-} -- See (:&) above
 
 -- Exercise: Prove that fork and unfork form an isomorphism.
@@ -230,8 +230,8 @@ class MonoidalR r co k => CocartesianR r co k where
   unjoin :: Obj2 k a b => co r a `k` b -> r (a `k` b)
   unjoin f = (f .) <$> ins
 
-pattern Join :: (CocartesianR h p k, Obj2 k f g) => h (k f g) -> k (p h f) g
-pattern Join ms <- (unjoin -> ms) where Join = join
+-- pattern Join :: (CocartesianR h p k, Obj2 k f g) => h (k f g) -> k (p h f) g
+-- pattern Join ms <- (unjoin -> ms) where Join = join
 -- {-# complete Join #-} -- See (:&) above
 
 type BicartesianR r p co k = (CartesianR r p k, CocartesianR r co k)
