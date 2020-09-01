@@ -69,12 +69,12 @@ instance LinearMap L where
 -------------------------------------------------------------------------------
 
 instance (Representable f, Representable g, Semiring s) => Additive (L s f g) where
-  zero                 = isoRev rowMajIso (pureRep (pureRep zero))
-  Scale s + Scale s'   = Scale (s + s')
+  zero = isoRev rowMajIso (pureRep (pureRep zero))
+  Scale s   + Scale s' = Scale (s + s')
   (f :|# g) + (h :| k) = (f + h) :| (g + k)
   (f :&# g) + (h :& k) = (f + h) :& (g + k)
-  ForkL ms  + Fork ms' = Fork (ms +^ ms')
-  JoinL ms  + Join ms' = Join (ms +^ ms')
+  ForkL fs  + Fork gs  = Fork (fs +^ gs)
+  JoinL fs  + Join gs  = Join (fs +^ gs)
 
 rowMajIso :: L s a b <-> b (a s)
 rowMajIso = fwd :<-> rev
@@ -105,9 +105,9 @@ instance Semiring s => Category (L s) where
 
 instance (V r, Semiring s) => CartesianR r (:.:) (L s) where
   fork = ForkL
-  unfork (p :|# q)  = liftR2 (:|#) (unfork p) (unfork q)
-  unfork (ForkL ms) = ms
-  unfork (JoinL ms) = JoinL <$> distribute (unfork <$> ms)
+  unfork (Fork fs :|# Fork gs) = liftR2 (:|#) fs gs
+  unfork (ForkL fs)            = fs
+  unfork (JoinL fs)            = JoinL <$> distribute (unfork <$> fs)
 
 pattern Fork :: (CartesianR h p k, Obj2 k f g) => h (k f g) -> k f (p h g)
 pattern Fork ms <- (unfork -> ms) where Fork = fork
@@ -115,13 +115,13 @@ pattern Fork ms <- (unfork -> ms) where Fork = fork
 
 instance (V r, Foldable r, Semiring s) => CocartesianR r (:.:) (L s) where
   join = JoinL
-  unjoin (p :&# p') = liftR2 (:&#) (unjoin p) (unjoin p')
-  unjoin (JoinL ms) = ms
-  unjoin (ForkL ms) = fmap ForkL (distribute (fmap unjoin ms))
+  unjoin (Join fs :&# Join gs) = liftR2 (:&#) fs gs
+  unjoin (JoinL fs)            = fs
+  unjoin (ForkL fs)            = fmap ForkL (distribute (fmap unjoin fs))
 
 pattern Join :: (CocartesianR h p k, Obj2 k f g) => h (k f g) -> k (p h f) g
 pattern Join ms <- (unjoin -> ms) where Join = join
-{-# COMPLETE Join :: L #-} -- See (:&) above
+{-# COMPLETE Join :: L #-}
 
 -- TODO: Add deriving capabilities
 instance Semiring s => Monoidal (:*:) (L s) where
@@ -143,26 +143,22 @@ instance (V r, Semiring s) => MonoidalR r (:.:) (L s) where
 --
 -- deriving via (ViaCartesian (:.:) (L s)) instance () => (MonoidalR r (:.:) (L s))
 
--- TODO: Move to Category.hs
--- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
 instance Semiring s => Cartesian (:*:) (L s) where
   (&&&) = (:&#)
-  unfork2 (p :&# q) = (p,q)
-  unfork2 ((unfork2 -> (p,q)) :|# (unfork2 -> (r,s))) = (p :|# r, q :|# s)
-  unfork2 (JoinL ms) = (JoinL ### JoinL) (unzip (unfork2 <$> ms))
+  unfork2 (p :&# q)               = (p,q)
+  unfork2 ((p :& q) :|# (r :& s)) = (p :|# r, q :|# s)
+  unfork2 (JoinL ms)              = (JoinL ### JoinL) (unzip (unfork2 <$> ms))
 
 pattern (:&) :: (Cartesian p k, Obj3 k a c d)
              => (a `k` c) -> (a `k` d) -> (a `k` (c `p` d))
 pattern f :& g <- (unfork2 -> (f,g)) where (:&) = (&&&)
 {-# COMPLETE (:&) :: L #-}
 
--- TODO: Move to Category.hs
--- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
 instance Semiring s => Cocartesian (:*:) (L s) where
   (|||) = (:|#)
-  unjoin2 (p :|# q) = (p,q)
-  unjoin2 ((unjoin2 -> (p,q)) :&# (unjoin2 -> (r,s))) = (p :& r, q :& s)
-  unjoin2 (ForkL ms) = (ForkL ### ForkL) (unzip (unjoin2 <$> ms))
+  unjoin2 (p :|# q)               = (p,q)
+  unjoin2 ((p :| q) :&# (r :| s)) = (p :& r, q :& s)
+  unjoin2 (ForkL fs)              = (ForkL ### ForkL) (unzip (unjoin2 <$> fs))
 
 pattern (:|) :: (Cocartesian co k, Obj3 k a b c)
              => (a `k` c) -> (b `k` c) -> ((a `co` b) `k` c)
