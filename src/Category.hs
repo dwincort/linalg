@@ -248,6 +248,17 @@ class BicartesianR r p p k => BiproductR r p k
 -- | Deriving-via helpers
 -------------------------------------------------------------------------------
 
+-- For deriving via with n-ary products and coproducts.
+-- See https://github.com/conal/linalg/pull/54#discussion_r481393523
+type Representational1' r =
+  ((forall p q. Coercible p q => Coercible (r p) (r q)) :: Constraint)
+
+-- Wrap to avoid impredicativity
+class    Representational1' r => Representational1 r
+instance Representational1' r => Representational1 r
+
+type RepresentableR r = (Representable r, Representational1 r)
+
 -- | The 'ViaCartesian' type is designed to be used with `DerivingVia` to derive
 -- `Associative` and `Symmetric` instances using the `Cartesian` operations.
 newtype ViaCartesian k a b = ViaCartesian (a `k` b)
@@ -255,14 +266,13 @@ instance Category k => Category (ViaCartesian k) where
   type Obj' (ViaCartesian k) a = Obj k a
   id = ViaCartesian id
   ViaCartesian g . ViaCartesian f = ViaCartesian (g . f)
+
 instance Cartesian p k => Monoidal p (ViaCartesian k) where
   f ### g = (f . exl) &&& (g . exr)
-instance (Representable r, CartesianR r p k) => MonoidalR r p (ViaCartesian k) where
+instance (RepresentableR r, CartesianR r p k) => MonoidalR r p (ViaCartesian k) where
   rmap fs = fork (liftR2 (.) fs exs)
 deriving instance Cartesian p k => Cartesian p (ViaCartesian k)
-instance (CartesianR r p k, Representable r) => CartesianR r p (ViaCartesian k) where
-  exs = ViaCartesian <$> exs
-  dups = ViaCartesian dups
+deriving instance (CartesianR r p k, RepresentableR r) => CartesianR r p (ViaCartesian k)
 
 instance Cartesian p k => Associative p (ViaCartesian k) where
   lassoc = second exl &&& (exr . exr)
@@ -279,27 +289,16 @@ instance Category k => Category (ViaCocartesian k) where
   ViaCocartesian g . ViaCocartesian f = ViaCocartesian (g . f)
 instance Cocartesian co k => Monoidal co (ViaCocartesian k) where
   f ### g = (inl . f) ||| (inr . g)
-instance (CocartesianR r p k, Representable r) => MonoidalR r p (ViaCocartesian k) where
+instance (CocartesianR r p k, RepresentableR r) => MonoidalR r p (ViaCocartesian k) where
   rmap fs = join (liftR2 (.) ins fs)
 deriving instance Cocartesian co k => Cocartesian co (ViaCocartesian k)
-instance (CocartesianR r p k, Representable r) => CocartesianR r p (ViaCocartesian k) where
-  ins = ViaCocartesian <$> ins
-  jams = ViaCocartesian jams
+deriving instance (CocartesianR r p k, RepresentableR r) => CocartesianR r p (ViaCocartesian k)
 
 instance Cocartesian co k => Associative co (ViaCocartesian k) where
   lassoc = inl.inl ||| (inl.inr ||| inr)
   rassoc = (inl ||| inr.inl) ||| inr.inr
 instance Cocartesian co k => Symmetric co (ViaCocartesian k) where
   swap = inr ||| inl
-
--- For deriving via with n-ary products and coproducts.
--- See https://github.com/conal/linalg/pull/54#discussion_r481393523
-type Representational1' r =
-  ((forall p q. Coercible p q => Coercible (r p) (r q)) :: Constraint)
-
--- Wrap to avoid impredicativity
-class    Representational1' r => Representational1 r
-instance Representational1' r => Representational1 r
 
 -------------------------------------------------------------------------------
 -- | Function instances
