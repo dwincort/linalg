@@ -160,4 +160,3 @@ instance Semiring s => Cocartesian (:*:) (L s) where
 -- {-# COMPLETE (:|) :: L #-} -- See complete pragma above
 
 instance Semiring s => Biproduct (:*:) (L s)
-
