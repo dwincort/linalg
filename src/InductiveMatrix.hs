@@ -103,46 +103,6 @@ instance Semiring s => Category (L s) where
   m'        . JoinL ms  = JoinL (fmap (m' .) ms)  -- n-ary coproduct law
   JoinL ms' . ForkL ms  = sum (liftR2 (.) ms' ms) -- biproduct law
 
-instance (V r, Semiring s) => CartesianR r (:.:) (L s) where
-  fork = ForkL
-  unfork (Fork fs :|# Fork gs) = liftR2 (:|#) fs gs
-  unfork (ForkL fs)            = fs
-  unfork (JoinL fs)            = JoinL <$> distribute (unfork <$> fs)
-
-pattern Fork :: (CartesianR h p k, Obj2 k f g) => h (k f g) -> k f (p h g)
-pattern Fork ms <- (unfork -> ms) where Fork = fork
-{-# COMPLETE Fork :: L #-}
-
-instance (V r, Foldable r, Semiring s) => CocartesianR r (:.:) (L s) where
-  join = JoinL
-  unjoin (Join fs :&# Join gs) = liftR2 (:&#) fs gs
-  unjoin (JoinL fs)            = fs
-  unjoin (ForkL fs)            = fmap ForkL (distribute (fmap unjoin fs))
-
-pattern Join :: (CocartesianR h p k, Obj2 k f g) => h (k f g) -> k (p h f) g
-pattern Join ms <- (unjoin -> ms) where Join = join
-{-# COMPLETE Join :: L #-}
-
--- TODO: Add deriving capabilities
-instance Semiring s => Monoidal (:*:) (L s) where
-  f ### g = (inl . f) :|# (inr . g)
--- deriving via (ViaCartesian (:*:) (L s)) instance Monoidal (:*:) (L s)
-
--- TODO: Add deriving via capabilities.
--- Couldn't get constraints to work when defining this instance on the Via
--- type in Category.hs
-instance (V r, Semiring s) => MonoidalR r (:.:) (L s) where
-  rmap fs = ForkL (liftR2 (.) fs exs)
-
--- Can't derive via (why?)
--- Error:
--- [bios] [E] The exact Name ‘k1’ is not in scope
---   Probable cause: you used a unique Template Haskell name (NameU),
---   perhaps via newName, but did not bind it
---   If that's it, then -ddump-splices might be useful
---
--- deriving via (ViaCartesian (:.:) (L s)) instance () => (MonoidalR r (:.:) (L s))
-
 instance Semiring s => Cartesian (:*:) (L s) where
   (&&&) = (:&#)
   unfork2 (p :&# q)               = (p,q)
@@ -166,3 +126,46 @@ pattern f :| g <- (unjoin2 -> (f,g)) where (:|) = (|||)
 {-# COMPLETE (:|) :: L #-}
 
 instance Semiring s => Biproduct (:*:) (L s)
+
+instance (V r, Semiring s) => CartesianR r (:.:) (L s) where
+  fork = ForkL
+  unfork (Fork fs :|# Fork gs) = liftR2 (:|#) fs gs
+  unfork (ForkL fs)            = fs
+  unfork (JoinL fs)            = JoinL <$> distribute (unfork <$> fs)
+
+pattern Fork :: (CartesianR h p k, Obj2 k f g) => h (k f g) -> k f (p h g)
+pattern Fork ms <- (unfork -> ms) where Fork = fork
+{-# COMPLETE Fork :: L #-}
+
+instance (V r, Foldable r, Semiring s) => CocartesianR r (:.:) (L s) where
+  join = JoinL
+  unjoin (Join fs :&# Join gs) = liftR2 (:&#) fs gs
+  unjoin (JoinL fs)            = fs
+  unjoin (ForkL fs)            = fmap ForkL (distribute (fmap unjoin fs))
+
+pattern Join :: (CocartesianR h p k, Obj2 k f g) => h (k f g) -> k (p h f) g
+pattern Join ms <- (unjoin -> ms) where Join = join
+{-# COMPLETE Join :: L #-}
+
+-- instance Semiring s => Monoidal (:*:) (L s) where
+--   f ### g = (inl . f) :|# (inr . g)
+
+-- deriving via (ViaCocartesian (:*:) (L s)) instance Monoidal (:*:) (L s)
+
+instance (V r, Semiring s) => MonoidalR r (:.:) (L s) where
+  rmap fs = ForkL (liftR2 (.) fs exs)
+
+-- deriving via (ViaCartesian (:.:) (L s)) instance (MonoidalR r (:.:) (L s))
+
+-- Can't derive via (why?)
+-- Error:
+-- The exact Name ‘k1’ is not in scope
+--   Probable cause: you used a unique Template Haskell name (NameU),
+--   perhaps via newName, but did not bind it
+--   If that's it, then -ddump-splices might be useful
+
+-- TODO: shrink to a self-contained example, and report as GHC bug.
+-- 
+-- Possibly related:
+--   https://gitlab.haskell.org/ghc/ghc/-/issues/15831
+--   https://github.com/haskell-compat/deriving-compat/issues/19
