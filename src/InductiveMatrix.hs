@@ -13,7 +13,6 @@ module InductiveMatrix where
 
 import CatPrelude
 
-import Control.Arrow ((***))
 import qualified LinearFunction as F
 import LinearFunction hiding (L)
 import Category.Isomorphism
@@ -79,7 +78,7 @@ instance (Representable f, Representable g, Semiring s) => Additive (L s f g) wh
   ForkL ms  + Fork ms' = Fork (ms +^ ms')
   JoinL ms  + Join ms' = Join (ms +^ ms')
 
-rowMajIso :: Iso (->) (L s a b) (b (a s))
+rowMajIso :: L s a b <-> b (a s)
 rowMajIso = fwd :<-> rev
   where
     fwd :: L s a b -> b (a s)
@@ -147,7 +146,7 @@ instance Semiring s => Cartesian (:*:) (L s) where
   (&&&) = (:&#)
   unfork2 (p :&# q) = (p,q)
   unfork2 ((unfork2 -> (p,q)) :|# (unfork2 -> (r,s))) = (p :|# r, q :|# s)
-  unfork2 (JoinL ms) = (JoinL *** JoinL) (unzip (unfork2 <$> ms))
+  unfork2 (JoinL ms) = (JoinL ### JoinL) (unzip (unfork2 <$> ms))
 -- {-# COMPLETE (:&) :: L #-} -- See complete pragma above
 
 -- TODO: Move to Category.hs
@@ -156,7 +155,7 @@ instance Semiring s => Cocartesian (:*:) (L s) where
   (|||) = (:|#)
   unjoin2 (p :|# q) = (p,q)
   unjoin2 ((unjoin2 -> (p,q)) :&# (unjoin2 -> (r,s))) = (p :& r, q :& s)
-  unjoin2 (ForkL ms) = (ForkL *** ForkL) (unzip (unjoin2 <$> ms))
+  unjoin2 (ForkL ms) = (ForkL ### ForkL) (unzip (unjoin2 <$> ms))
 -- {-# COMPLETE (:|) :: L #-} -- See complete pragma above
 
 instance Semiring s => Biproduct (:*:) (L s)
