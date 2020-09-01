@@ -36,7 +36,7 @@ default-extensions:
   - TypeFamilies
   - TypeOperators
   - ViewPatterns
-  # - ScopedTypeVariables
+  - ScopedTypeVariables
   - KindSignatures
   - TypeSynonymInstances
   - PolyKinds

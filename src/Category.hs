@@ -83,30 +83,26 @@ second :: (Monoidal p k, Obj3 k a b d) => (b `k` d) -> ((a `p` b) `k` (a `p` d))
 second g = id ### g
 
 class Monoidal p k => Cartesian p k where
+  {-# MINIMAL ((exl, exr) | unfork2), ((&&&) | dup) #-}
   exl :: Obj2 k a b => (a `p` b) `k` a
+  exl = fst $ unfork2 id
   exr :: Obj2 k a b => (a `p` b) `k` b
+  exr = snd $ unfork2 id
   dup :: Obj  k a   => a `k` (a `p` a)
-
--- Binary fork
-infixr 3 &&&
-(&&&) :: (Cartesian p k, Obj3 k a c d)
-      => (a `k` c) -> (a `k` d) -> (a `k` (c `p` d))
-f &&& g = (f ### g) . dup
+  dup = id &&& id
+  infixr 3 &&&
+  -- Binary fork
+  (&&&) :: Obj3 k a c d => (a `k` c) -> (a `k` d) -> (a `k` (c `p` d))
+  f &&& g = (f ### g) . dup
+  -- Inverse of fork2
+  unfork2 :: Obj3 k a c d => (a `k` (c `p` d)) -> ((a `k` c) :* (a `k` d))
+  unfork2 f = (exl . f , exr . f)
 
 fork2 :: (Cartesian p k, Obj3 k a c d)
       => (a `k` c) :* (a `k` d) -> (a `k` (c `p` d))
 fork2 = uncurry (&&&)
 
--- Inverse of fork2
-unfork2 :: (Cartesian p k, Obj3 k a c d)
-        => (a `k` (c `p` d)) -> ((a `k` c) :* (a `k` d))
-unfork2 f = (exl . f , exr . f)
-
 -- Exercise: Prove that uncurry (&&&) and unfork2 form an isomorphism.
-
--- TODO: Add (&&&) and unfork2 to Cartesian with the current definitions as
--- defaults, and give defaults for exl, exr, and dup in terms of (&&&) and
--- unfork2. Use MINIMAL pragmas.
 
 pattern (:&) :: (Cartesian p k, Obj3 k a c d)
              => (a `k` c) -> (a `k` d) -> (a `k` (c `p` d))
@@ -119,6 +115,10 @@ pattern f :& g <- (unfork2 -> (f,g)) where (:&) = (&&&)
 --   In {-# complete :& #-}
 --
 -- Instead, give a typed COMPLETE pragma with each cartesian category instance.
+--
+-- Oops! GHC objects to these more specific 'COMPLETE' pragmas (in modules
+-- importing this one) as "orphans" and rejects them. Until this GHC situation
+-- improves, we'll have to <find another solution>.
 
 class Associative p k where
   lassoc :: Obj3 k a b c => (a `p` (b `p` c)) `k` ((a `p` b) `p` c)
@@ -134,30 +134,26 @@ class Symmetric p k where
 -- <https://hackage.haskell.org/package/categories/docs/Control-Category-Monoidal.html>.
 
 class Monoidal co k => Cocartesian co k where
+  {-# MINIMAL ((inl, inr) | unjoin2), ((|||) | jam) #-}
   inl :: Obj2 k a b => a `k` (a `co` b)
+  inl = fst $ unjoin2 id
   inr :: Obj2 k a b => b `k` (a `co` b)
+  inr = snd $ unjoin2 id
   jam :: Obj  k a   => (a `co` a) `k` a
-
--- Binary join
-infixr 2 |||
-(|||) :: (Cocartesian co k, Obj3 k a b c)
-      => (a `k` c) -> (b `k` c) -> ((a `co` b) `k` c)
-f ||| g = jam . (f ### g)
+  jam = id ||| id
+  -- Binary join
+  infixr 2 |||
+  (|||) :: Obj3 k a b c => (a `k` c) -> (b `k` c) -> ((a `co` b) `k` c)
+  f ||| g = jam . (f ### g)
+  -- Inverse of join2
+  unjoin2 :: Obj3 k a b c => ((a `co` b) `k` c) -> ((a `k` c) :* (b `k` c))
+  unjoin2 f = (f . inl , f . inr)
 
 join2 :: (Cocartesian co k, Obj3 k a b c)
       => (a `k` c) :* (b `k` c) -> ((a `co` b) `k` c)
 join2 = uncurry (|||)
 
--- Inverse of join2
-unjoin2 :: (Cocartesian co k, Obj3 k a b c)
-        => ((a `co` b) `k` c) -> ((a `k` c) :* (b `k` c))
-unjoin2 f = (f . inl , f . inr)
-
 -- Exercise: Prove that uncurry (|||) and unjoin2 form an isomorphism.
-
--- TODO: Add (|||) and unjoin2 to Cartesian with the current definitions as
--- defaults, and give defaults for exl, exr, and dup in terms of (|||) and
--- unjoin2. Use MINIMAL pragmas.
 
 pattern (:|) :: (Cocartesian co k, Obj3 k a b c)
              => (a `k` c) -> (b `k` c) -> ((a `co` b) `k` c)
@@ -169,7 +165,6 @@ type Bicartesian p co k = (Cartesian p k, Cocartesian co k)
 -- When products and coproducts coincide. A class rather than type synonym,
 -- because there are more laws.
 class Bicartesian p p k => Biproduct p k
-
 
 class (Category k, ObjBin e k) => Closed e k where
   (^^^) :: Obj4 k a b c d => (a `k` b) -> (d `k` c) -> ((c `e` a) `k` (d `e` b))
@@ -197,8 +192,14 @@ instance Category k => Category (ViaCartesian p k) where
   type Obj' (ViaCartesian p k) a = Obj k a
   id = ViaCartesian id
   ViaCartesian g . ViaCartesian f = ViaCartesian (g . f)
-deriving instance Monoidal  p k => Monoidal  p (ViaCartesian p k)
+instance Cartesian p k => Monoidal p (ViaCartesian p k) where
+  f ### g = (f . exl) &&& (g . exr)
+instance (Representable r, CartesianR r p k) => MonoidalR r p (ViaCartesian p k) where
+  rmap fs = fork (liftR2 (.) fs exs)
 deriving instance Cartesian p k => Cartesian p (ViaCartesian p k)
+instance (CartesianR r p k, Representable r) => CartesianR r p (ViaCartesian p k) where
+  exs = ViaCartesian <$> exs
+  dups = ViaCartesian dups
 
 instance Cartesian p k => Associative p (ViaCartesian p k) where
   lassoc = second exl &&& (exr . exr)
@@ -213,8 +214,14 @@ instance Category k => Category (ViaCocartesian p k) where
   type Obj' (ViaCocartesian p k) a = Obj k a
   id = ViaCocartesian id
   ViaCocartesian g . ViaCocartesian f = ViaCocartesian (g . f)
-deriving instance Monoidal  co k => Monoidal  co (ViaCocartesian co k)
+instance Cocartesian co k => Monoidal co (ViaCocartesian co k) where
+  f ### g = (inl . f) ||| (inr . g)
+instance (CocartesianR r p k, Representable r) => MonoidalR r p (ViaCocartesian p k) where
+  rmap fs = join (liftR2 (.) ins fs)
 deriving instance Cocartesian co k => Cocartesian co (ViaCocartesian co k)
+instance (CocartesianR r p k, Representable r) => CocartesianR r p (ViaCocartesian p k) where
+  ins = ViaCocartesian <$> ins
+  jams = ViaCocartesian jams
 
 instance Cocartesian co k => Associative co (ViaCocartesian co k) where
   lassoc = inl.inl ||| (inl.inr ||| inr)
@@ -222,49 +229,54 @@ instance Cocartesian co k => Associative co (ViaCocartesian co k) where
 instance Cocartesian co k => Symmetric co (ViaCocartesian co k) where
   swap = inr ||| inl
 
-
 -------------------------------------------------------------------------------
 -- | n-ary counterparts (where n is a type, not a number).
 -------------------------------------------------------------------------------
 
--- Assumes functor categories. To do: look for a clean, poly-kinded alternative.
+-- Assumes functor categories. TODO: look for a clean, poly-kinded alternative.
 -- I guess we could generalize from functor composition and functor application.
 
 type ObjR' r p k = ((forall z. Obj k z => Obj k (p r z)) :: Constraint)
 
-class    (Functor r, ObjR' r p k) => ObjR r p k
-instance (Functor r, ObjR' r p k) => ObjR r p k
+class    (Representable r, ObjR' r p k) => ObjR r p k
+instance (Representable r, ObjR' r p k) => ObjR r p k
 
 class (Category k, ObjR r p k) => MonoidalR r p k where
   -- | n-ary version of '(###)'
   rmap :: Obj2 k a b => r (a `k` b) -> (p r a `k` p r b)
 
 class MonoidalR r p k => CartesianR r p k where
+  {-# MINIMAL ((exs | unfork), (fork | dups)) #-}
   exs  :: Obj k a => r (p r a `k` a)
+  exs = unfork id
   dups :: Obj k a => a `k` p r a
+  dups = fork (pureRep id)
+  fork :: Obj2 k a c => r (a `k` c) -> (a `k` p r c)
+  fork fs = rmap fs . dups
+  unfork :: Obj2 k a b => a `k` p r b -> r (a `k` b)
+  unfork f = (. f) <$> exs
 
-fork :: (CartesianR r p k, Obj2 k a c) => r (a `k` c) -> (a `k` p r c)
-fork fs = rmap fs . dups
-
-unfork :: (CartesianR r p k, Obj2 k a b) => a `k` (p r b) -> r (a `k` b)
-unfork f = (. f) <$> exs
+pattern Fork :: (CartesianR h p k, Obj2 k f g) => h (k f g) -> k f (p h g)
+pattern Fork ms <- (unfork -> ms) where Fork = fork
+-- {-# complete Fork #-} -- See (:&) above
 
 -- Exercise: Prove that fork and unfork form an isomorphism.
 
 -- N-ary biproducts
 class MonoidalR r co k => CocartesianR r co k where
+  {-# MINIMAL ((ins | unjoin), (join | jams)) #-}
   ins  :: Obj k a => r (a `k` co r a)
+  ins = unjoin id
   jams :: Obj k a => co r a `k` a
+  jams = join (pureRep id)
+  join :: Obj2 k a b => r (a `k` b) -> co r a `k` b
+  join fs = jams . rmap fs
+  unjoin :: Obj2 k a b => co r a `k` b -> r (a `k` b)
+  unjoin f = (f .) <$> ins
 
-join :: (CocartesianR r co k, Obj2 k a b) => r (a `k` b) -> co r a `k` b
-join fs = jams . rmap fs
-
-unjoin :: (CocartesianR r co k, Obj2 k a b) => co r a `k` b -> r (a `k` b)
-unjoin f = (f .) <$> ins
-
--- TODO: Add fork & unfork to CartesianR with the current definitions as
--- defaults, and give defaults for exs and dups in terms of fork and unfork.
--- Ditto for ins/jams and join/unjoin. Use MINIMAL pragmas.
+pattern Join :: (CocartesianR h p k, Obj2 k f g) => h (k f g) -> k (p h f) g
+pattern Join ms <- (unjoin -> ms) where Join = join
+-- {-# complete Join #-} -- See (:&) above
 
 type BicartesianR r p co k = (CartesianR r p k, CocartesianR r co k)
 

@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+
 {- |
 "Inductive matrices", as in "Type Your Matrices for Great Good: A Haskell
 Library of Typed Matrices and Applications (Functional Pearl)" Armando Santos
@@ -11,6 +13,7 @@ module InductiveMatrix where
 
 import CatPrelude
 
+import Control.Arrow ((***))
 import qualified LinearFunction as F
 import LinearFunction hiding (L)
 import Category.Isomorphism
@@ -22,7 +25,10 @@ import Category.Isomorphism
 infixr 3 :&#
 infixr 2 :|#
 
-type V = Representable
+type V' a = (Representable a, Eq (Rep a))
+
+class    V' a => V a
+instance V' a => V a
 
 -- | Compositional linear map representation.
 data L :: * -> (* -> *) -> (* -> *) -> * where
@@ -63,7 +69,94 @@ instance LinearMap L where
 -- | Instances (all deducible from denotational homomorphisms)
 -------------------------------------------------------------------------------
 
-instance Category (L s) where
+-- This gives non-exhaustive pattern matching because pattern synonyms
+-- cannot be made complete
+instance (Representable f, Representable g, Semiring s) => Additive (L s f g) where
+  zero                 = isoRev rowMajIso (pureRep (pureRep zero))
+  Scale s + Scale s'   = Scale (s + s')
+  (f :|# g) + (h :| k) = (f + h) :| (g + k)
+  (f :&# g) + (h :& k) = (f + h) :& (g + k)
+  ForkL ms  + Fork ms' = Fork (ms +^ ms')
+  JoinL ms  + Join ms' = Join (ms +^ ms')
+
+rowMajIso :: Iso (->) (L s a b) (b (a s))
+rowMajIso = fwd :<-> rev
+  where
+    fwd :: L s a b -> b (a s)
+    fwd (Scale s) = pureRep (pureRep s)
+    fwd (f :|# g) = liftR2 (:*:) (fwd f) (fwd g)
+    fwd (f :&# g) = fwd f :*: fwd g
+    fwd (JoinL m) = cotraverse Comp1 $ fmap fwd m
+    fwd (ForkL m) = Comp1 $ fmap fwd m
+    rev :: b (a s) -> L s a b
+    rev = undefined -- TODO: Write rev for toRowMajIso.
+
+diagRep :: (Representable h, Eq (Rep h)) => a -> h a -> h (h a)
+diagRep dflt as =
+  tabulate (\ i -> tabulate (\ j -> if i == j then as `index` i else dflt))
+
+instance Semiring s => Category (L s) where
   type Obj' (L s) a = V a
-  id = undefined
-  (.) = undefined
+  id = isoRev rowMajIso (diagRep zero (pureRep one))
+  Scale a   . Scale b   = Scale (a * b)           -- Scale denotation
+  (p :&# q) . m         = p . m :&# q . m         -- binary product law
+  m         . (p :|# q) = m . p :|# m . q         -- binary coproduct law
+  (r :|# s) . (p :&# q) = r . p + s . q           -- biproduct law
+  ForkL ms' . m         = ForkL (fmap (. m) ms')  -- n-ary product law
+  m'        . JoinL ms  = JoinL (fmap (m' .) ms)  -- n-ary coproduct law
+  JoinL ms' . ForkL ms  = sum (liftR2 (.) ms' ms) -- biproduct law
+
+instance (V r, Semiring s) => CartesianR r (:.:) (L s) where
+  fork = ForkL
+  unfork (p :|# q)  = liftR2 (:|#) (unfork p) (unfork q)
+  unfork (ForkL ms) = ms
+  unfork (JoinL ms) = JoinL <$> distribute (unfork <$> ms)
+-- {-# COMPLETE Fork :: L #-} -- Orphan COMPLETE pragmas not supported
+-- (These are defined in Category.hs)
+
+instance (V r, Foldable r, Semiring s) => CocartesianR r (:.:) (L s) where
+  join = JoinL
+  unjoin (p :&# p') = liftR2 (:&#) (unjoin p) (unjoin p')
+  unjoin (JoinL ms) = ms
+  unjoin (ForkL ms) = fmap ForkL (distribute (fmap unjoin ms))
+-- {-# COMPLETE Join :: L #-} -- See complete pragma above
+
+-- TODO: Add deriving capabilities
+instance Semiring s => Monoidal (:*:) (L s) where
+  f ### g = (inl . f) :|# (inr . g)
+-- deriving via (ViaCartesian (:*:) (L s)) instance Monoidal (:*:) (L s)
+
+-- TODO: Add deriving via capabilities.
+-- Couldn't get constraints to work when defining this instance on the Via
+-- type in Category.hs
+instance (V r, Semiring s) => MonoidalR r (:.:) (L s) where
+  rmap fs = ForkL (liftR2 (.) fs exs)
+
+-- Can't derive via (why?)
+-- Error:
+-- [bios] [E] The exact Name ‘k1’ is not in scope
+--   Probable cause: you used a unique Template Haskell name (NameU),
+--   perhaps via newName, but did not bind it
+--   If that's it, then -ddump-splices might be useful
+--
+-- deriving via (ViaCartesian (:.:) (L s)) instance () => (MonoidalR r (:.:) (L s))
+
+-- TODO: Move to Category.hs
+-- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
+instance Semiring s => Cartesian (:*:) (L s) where
+  (&&&) = (:&#)
+  unfork2 (p :&# q) = (p,q)
+  unfork2 ((unfork2 -> (p,q)) :|# (unfork2 -> (r,s))) = (p :|# r, q :|# s)
+  unfork2 (JoinL ms) = (JoinL *** JoinL) (unzip (unfork2 <$> ms))
+-- {-# COMPLETE (:&) :: L #-} -- See complete pragma above
+
+-- TODO: Move to Category.hs
+-- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
+instance Semiring s => Cocartesian (:*:) (L s) where
+  (|||) = (:|#)
+  unjoin2 (p :|# q) = (p,q)
+  unjoin2 ((unjoin2 -> (p,q)) :&# (unjoin2 -> (r,s))) = (p :& r, q :& s)
+  unjoin2 (ForkL ms) = (ForkL *** ForkL) (unzip (unjoin2 <$> ms))
+-- {-# COMPLETE (:|) :: L #-} -- See complete pragma above
+
+instance Semiring s => Biproduct (:*:) (L s)
