@@ -249,46 +249,46 @@ class BicartesianR r p p k => BiproductR r p k
 
 -- | The 'ViaCartesian' type is designed to be used with `DerivingVia` to derive
 -- `Associative` and `Symmetric` instances using the `Cartesian` operations.
-newtype ViaCartesian p k a b = ViaCartesian (k a b)
-instance Category k => Category (ViaCartesian p k) where
-  type Obj' (ViaCartesian p k) a = Obj k a
+newtype ViaCartesian k a b = ViaCartesian (a `k` b)
+instance Category k => Category (ViaCartesian k) where
+  type Obj' (ViaCartesian k) a = Obj k a
   id = ViaCartesian id
   ViaCartesian g . ViaCartesian f = ViaCartesian (g . f)
-instance Cartesian p k => Monoidal p (ViaCartesian p k) where
+instance Cartesian p k => Monoidal p (ViaCartesian k) where
   f ### g = (f . exl) &&& (g . exr)
-instance (Representable r, CartesianR r p k) => MonoidalR r p (ViaCartesian p k) where
+instance (Representable r, CartesianR r p k) => MonoidalR r p (ViaCartesian k) where
   rmap fs = fork (liftR2 (.) fs exs)
-deriving instance Cartesian p k => Cartesian p (ViaCartesian p k)
-instance (CartesianR r p k, Representable r) => CartesianR r p (ViaCartesian p k) where
+deriving instance Cartesian p k => Cartesian p (ViaCartesian k)
+instance (CartesianR r p k, Representable r) => CartesianR r p (ViaCartesian k) where
   exs = ViaCartesian <$> exs
   dups = ViaCartesian dups
 
-instance Cartesian p k => Associative p (ViaCartesian p k) where
+instance Cartesian p k => Associative p (ViaCartesian k) where
   lassoc = second exl &&& (exr . exr)
   rassoc = (exl . exl) &&& first  exr
-instance Cartesian p k => Symmetric p (ViaCartesian p k) where
+instance Cartesian p k => Symmetric p (ViaCartesian k) where
   swap = exr &&& exl
 
 -- | The 'ViaCocartesian' type is designed to be used with `DerivingVia` to derive
 -- `Associative` and `Symmetric` instances using the `Cocartesian` operations.
-newtype ViaCocartesian co k a b = ViaCocartesian (k a b)
-instance Category k => Category (ViaCocartesian p k) where
-  type Obj' (ViaCocartesian p k) a = Obj k a
+newtype ViaCocartesian k a b = ViaCocartesian (a `k` b)
+instance Category k => Category (ViaCocartesian k) where
+  type Obj' (ViaCocartesian k) a = Obj k a
   id = ViaCocartesian id
   ViaCocartesian g . ViaCocartesian f = ViaCocartesian (g . f)
-instance Cocartesian co k => Monoidal co (ViaCocartesian co k) where
+instance Cocartesian co k => Monoidal co (ViaCocartesian k) where
   f ### g = (inl . f) ||| (inr . g)
-instance (CocartesianR r p k, Representable r) => MonoidalR r p (ViaCocartesian p k) where
+instance (CocartesianR r p k, Representable r) => MonoidalR r p (ViaCocartesian k) where
   rmap fs = join (liftR2 (.) ins fs)
-deriving instance Cocartesian co k => Cocartesian co (ViaCocartesian co k)
-instance (CocartesianR r p k, Representable r) => CocartesianR r p (ViaCocartesian p k) where
+deriving instance Cocartesian co k => Cocartesian co (ViaCocartesian k)
+instance (CocartesianR r p k, Representable r) => CocartesianR r p (ViaCocartesian k) where
   ins = ViaCocartesian <$> ins
   jams = ViaCocartesian jams
 
-instance Cocartesian co k => Associative co (ViaCocartesian co k) where
+instance Cocartesian co k => Associative co (ViaCocartesian k) where
   lassoc = inl.inl ||| (inl.inr ||| inr)
   rassoc = (inl ||| inr.inl) ||| inr.inr
-instance Cocartesian co k => Symmetric co (ViaCocartesian co k) where
+instance Cocartesian co k => Symmetric co (ViaCocartesian k) where
   swap = inr ||| inl
 
 -------------------------------------------------------------------------------
@@ -325,10 +325,10 @@ instance MonoidalClosed (:*) (->) (->) where
   curry   = P.curry
   uncurry = P.uncurry
 
-deriving via (ViaCartesian   (:*) (->)) instance Associative (:*) (->)
-deriving via (ViaCartesian   (:*) (->)) instance Symmetric   (:*) (->)
-deriving via (ViaCocartesian (:+) (->)) instance Associative (:+) (->)
-deriving via (ViaCocartesian (:+) (->)) instance Symmetric   (:+) (->)
+deriving via (ViaCartesian   (->)) instance Associative (:*) (->)
+deriving via (ViaCartesian   (->)) instance Symmetric   (:*) (->)
+deriving via (ViaCocartesian (->)) instance Associative (:+) (->)
+deriving via (ViaCocartesian (->)) instance Symmetric   (:+) (->)
 
 instance Representable r => MonoidalR r Ap (->) where
   rmap rab (Ap ra) = Ap (liftR2 ($) rab ra)
