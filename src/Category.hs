@@ -70,7 +70,7 @@ class (Category k, ObjBin p k) => Monoidal p k where
 -- TODO: Does it make any sense to move 'p' and its ObjBin into the method
 -- signatures, as in MonoidalR below? Should we instead move 'r' in MonoidalR
 -- from the method signatures to the class? It feels wrong to me (conal) that
--- there is only one binary product but many n-ary. In other sense, n-ary is
+-- there is only one binary product but many n-ary. In another sense, n-ary is
 -- even more restrictive than binary: the (type-indexed) tuple-ness of
 -- representable functors is wired in, and so is the object kind. For instance,
 -- we cannot currently handle n-ary coproducts that are not n-ary cartesian
@@ -185,50 +185,6 @@ class (Monoidal p k, Closed e k) => MonoidalClosed p e k where
   uncurry g = apply . first g
   {-# MINIMAL curry, (uncurry | apply) #-}
 
--- | The 'ViaCartesian' type is designed to be used with `DerivingVia` to derive
--- `Associative` and `Symmetric` instances using the `Cartesian` operations.
-newtype ViaCartesian p k a b = ViaCartesian (k a b)
-instance Category k => Category (ViaCartesian p k) where
-  type Obj' (ViaCartesian p k) a = Obj k a
-  id = ViaCartesian id
-  ViaCartesian g . ViaCartesian f = ViaCartesian (g . f)
-instance Cartesian p k => Monoidal p (ViaCartesian p k) where
-  f ### g = (f . exl) &&& (g . exr)
-instance (Representable r, CartesianR r p k) => MonoidalR r p (ViaCartesian p k) where
-  rmap fs = fork (liftR2 (.) fs exs)
-deriving instance Cartesian p k => Cartesian p (ViaCartesian p k)
-instance (CartesianR r p k, Representable r) => CartesianR r p (ViaCartesian p k) where
-  exs = ViaCartesian <$> exs
-  dups = ViaCartesian dups
-
-instance Cartesian p k => Associative p (ViaCartesian p k) where
-  lassoc = second exl &&& (exr . exr)
-  rassoc = (exl . exl) &&& first  exr
-instance Cartesian p k => Symmetric p (ViaCartesian p k) where
-  swap = exr &&& exl
-
--- | The 'ViaCocartesian' type is designed to be used with `DerivingVia` to derive
--- `Associative` and `Symmetric` instances using the `Cocartesian` operations.
-newtype ViaCocartesian co k a b = ViaCocartesian (k a b)
-instance Category k => Category (ViaCocartesian p k) where
-  type Obj' (ViaCocartesian p k) a = Obj k a
-  id = ViaCocartesian id
-  ViaCocartesian g . ViaCocartesian f = ViaCocartesian (g . f)
-instance Cocartesian co k => Monoidal co (ViaCocartesian co k) where
-  f ### g = (inl . f) ||| (inr . g)
-instance (CocartesianR r p k, Representable r) => MonoidalR r p (ViaCocartesian p k) where
-  rmap fs = join (liftR2 (.) ins fs)
-deriving instance Cocartesian co k => Cocartesian co (ViaCocartesian co k)
-instance (CocartesianR r p k, Representable r) => CocartesianR r p (ViaCocartesian p k) where
-  ins = ViaCocartesian <$> ins
-  jams = ViaCocartesian jams
-
-instance Cocartesian co k => Associative co (ViaCocartesian co k) where
-  lassoc = inl.inl ||| (inl.inr ||| inr)
-  rassoc = (inl ||| inr.inl) ||| inr.inr
-instance Cocartesian co k => Symmetric co (ViaCocartesian co k) where
-  swap = inr ||| inl
-
 -------------------------------------------------------------------------------
 -- | n-ary counterparts (where n is a type, not a number).
 -------------------------------------------------------------------------------
@@ -285,7 +241,55 @@ type BicartesianR r p co k = (CartesianR r p k, CocartesianR r co k)
 class BicartesianR r p p k => BiproductR r p k
 
 -- Add Abelian and AbelianR?
--- I think f + g = jam . (f &&& g), and sum fs = jams . fork fs.
+-- I think f + g = jam . (f ### g) . dup, and sum fs = jams . fork fs.
+
+-------------------------------------------------------------------------------
+-- | Deriving-via helpers
+-------------------------------------------------------------------------------
+
+-- | The 'ViaCartesian' type is designed to be used with `DerivingVia` to derive
+-- `Associative` and `Symmetric` instances using the `Cartesian` operations.
+newtype ViaCartesian p k a b = ViaCartesian (k a b)
+instance Category k => Category (ViaCartesian p k) where
+  type Obj' (ViaCartesian p k) a = Obj k a
+  id = ViaCartesian id
+  ViaCartesian g . ViaCartesian f = ViaCartesian (g . f)
+instance Cartesian p k => Monoidal p (ViaCartesian p k) where
+  f ### g = (f . exl) &&& (g . exr)
+instance (Representable r, CartesianR r p k) => MonoidalR r p (ViaCartesian p k) where
+  rmap fs = fork (liftR2 (.) fs exs)
+deriving instance Cartesian p k => Cartesian p (ViaCartesian p k)
+instance (CartesianR r p k, Representable r) => CartesianR r p (ViaCartesian p k) where
+  exs = ViaCartesian <$> exs
+  dups = ViaCartesian dups
+
+instance Cartesian p k => Associative p (ViaCartesian p k) where
+  lassoc = second exl &&& (exr . exr)
+  rassoc = (exl . exl) &&& first  exr
+instance Cartesian p k => Symmetric p (ViaCartesian p k) where
+  swap = exr &&& exl
+
+-- | The 'ViaCocartesian' type is designed to be used with `DerivingVia` to derive
+-- `Associative` and `Symmetric` instances using the `Cocartesian` operations.
+newtype ViaCocartesian co k a b = ViaCocartesian (k a b)
+instance Category k => Category (ViaCocartesian p k) where
+  type Obj' (ViaCocartesian p k) a = Obj k a
+  id = ViaCocartesian id
+  ViaCocartesian g . ViaCocartesian f = ViaCocartesian (g . f)
+instance Cocartesian co k => Monoidal co (ViaCocartesian co k) where
+  f ### g = (inl . f) ||| (inr . g)
+instance (CocartesianR r p k, Representable r) => MonoidalR r p (ViaCocartesian p k) where
+  rmap fs = join (liftR2 (.) ins fs)
+deriving instance Cocartesian co k => Cocartesian co (ViaCocartesian co k)
+instance (CocartesianR r p k, Representable r) => CocartesianR r p (ViaCocartesian p k) where
+  ins = ViaCocartesian <$> ins
+  jams = ViaCocartesian jams
+
+instance Cocartesian co k => Associative co (ViaCocartesian co k) where
+  lassoc = inl.inl ||| (inl.inr ||| inr)
+  rassoc = (inl ||| inr.inl) ||| inr.inr
+instance Cocartesian co k => Symmetric co (ViaCocartesian co k) where
+  swap = inr ||| inl
 
 -------------------------------------------------------------------------------
 -- | Function instances
