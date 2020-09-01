@@ -11,6 +11,7 @@ and José N Oliveira (Haskell Symposium 2020) [URL?]. The main differences:
 
 module InductiveMatrix where
 
+import GHC.Exts (Coercible)
 import CatPrelude
 
 import qualified LinearFunction as F
@@ -24,7 +25,13 @@ import Category.Isomorphism
 infixr 3 :&#
 infixr 2 :|#
 
-type V' a = (Representable a, Eq (Rep a))
+type Representational r =
+  ((forall p q. Coercible p q => Coercible (r p) (r q)) :: Constraint)
+
+class    (Representable r, Representational r) => Representable' r
+instance (Representable r, Representational r) => Representable' r
+
+type V' a = (Representable' a, Eq (Rep a))
 
 class    V' a => V a
 instance V' a => V a
@@ -34,7 +41,7 @@ data L :: * -> (* -> *) -> (* -> *) -> * where
   Scale :: Semiring s => s -> L s Par1 Par1
   (:|#) :: (C3 V a b c, Additive s) => L s a c -> L s b c -> L s (a :*: b) c
   (:&#) :: C3 V a c k => L s a c -> L s a k -> L s a (c :*: k)
-  JoinL :: (C2 V a b, Representable r, Eq (Rep r), Foldable r, Additive s)
+  JoinL :: (C2 V a b, Representable' r, Eq (Rep r), Foldable r, Additive s)
         => r (L s a b) -> L s (r :.: a) b
   ForkL :: C3 V a b r => r (L s a b) -> L s a (r :.: b)
 
@@ -68,7 +75,7 @@ instance LinearMap L where
 -- | Instances (all deducible from denotational homomorphisms)
 -------------------------------------------------------------------------------
 
-instance (Representable f, Representable g, Semiring s) => Additive (L s f g) where
+instance (Representable' f, Representable' g, Semiring s) => Additive (L s f g) where
   zero = isoRev rowMajIso (pureRep (pureRep zero))
   Scale s   + Scale s' = Scale (s + s')
   (f :|# g) + (h :| k) = (f + h) :| (g + k)
@@ -147,22 +154,26 @@ pattern Join :: (CocartesianR h p k, Obj2 k f g) => h (k f g) -> k (p h f) g
 pattern Join ms <- (unjoin -> ms) where Join = join
 {-# COMPLETE Join :: L #-}
 
-deriving via ViaCocartesian (L s) instance Semiring s => Monoidal (:*:) (L s)
+instance Semiring s => Monoidal (:*:) (L s) where
+  -- ...
 
-instance (V r, Semiring s) => MonoidalR r (:.:) (L s) where
-  rmap fs = ForkL (liftR2 (.) fs exs)
+-- • Couldn't match type ‘p’ with ‘q’
+--     arising from the superclasses of an instance declaration
+--   ‘p’ is a rigid type variable bound by
+--     a quantified context
+--     at src/InductiveMatrix.hs:1:1
+--   ‘q’ is a rigid type variable bound by
+--     a quantified context
+--     at src/InductiveMatrix.hs:1:1
+-- • In the instance declaration for ‘Monoidal (:*:) (L s)’
 
--- deriving via (ViaCartesian (:.:) (L s)) instance (MonoidalR r (:.:) (L s))
+-- instance Semiring s => Monoidal (:*:) (L s) where
+--   f ### g = (inl . f) :|# (inr . g)
 
--- Can't derive via (why?)
--- Error:
--- The exact Name ‘k1’ is not in scope
---   Probable cause: you used a unique Template Haskell name (NameU),
---   perhaps via newName, but did not bind it
---   If that's it, then -ddump-splices might be useful
+-- deriving via ViaCocartesian (L s) instance Semiring s => Monoidal (:*:) (L s)
 
--- TODO: shrink to a self-contained example, and report as GHC bug.
--- 
--- Possibly related:
---   https://gitlab.haskell.org/ghc/ghc/-/issues/15831
---   https://github.com/haskell-compat/deriving-compat/issues/19
+-- instance (V r, Semiring s) => MonoidalR r (:.:) (L s) where
+--   rmap fs = ForkL (liftR2 (.) fs exs)
+
+deriving via ViaCartesian (L s)
+  instance (V' r, Semiring s) => MonoidalR r (:.:) (L s)
