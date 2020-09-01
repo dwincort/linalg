@@ -10,6 +10,7 @@ module Category where
 import qualified Prelude as P
 import Prelude hiding (id,(.),curry,uncurry)
 import GHC.Types (Constraint)
+import GHC.Exts (Coercible)
 import qualified Control.Arrow as A
 import Data.Monoid (Ap(..))
 import Data.Functor.Rep
@@ -290,6 +291,15 @@ instance Cocartesian co k => Associative co (ViaCocartesian k) where
   rassoc = (inl ||| inr.inl) ||| inr.inr
 instance Cocartesian co k => Symmetric co (ViaCocartesian k) where
   swap = inr ||| inl
+
+-- For deriving via with n-ary products and coproducts.
+-- See https://github.com/conal/linalg/pull/54#discussion_r481393523
+type Representational1' r =
+  ((forall p q. Coercible p q => Coercible (r p) (r q)) :: Constraint)
+
+-- Wrap to avoid impredicativity
+class    Representational1' r => Representational1 r
+instance Representational1' r => Representational1 r
 
 -------------------------------------------------------------------------------
 -- | Function instances

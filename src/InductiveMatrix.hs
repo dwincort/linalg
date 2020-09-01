@@ -2,8 +2,9 @@
 
 {- |
 "Inductive matrices", as in "Type Your Matrices for Great Good: A Haskell
-Library of Typed Matrices and Applications (Functional Pearl)" Armando Santos
-and José N Oliveira (Haskell Symposium 2020) [URL?]. The main differences:
+Library of Typed Matrices and Applications (Functional Pearl)" by Armando Santos
+and José N Oliveira (Haskell Symposium 2020)
+<https://github.com/bolt12/tymfgg-pearl>. The main differences:
 
 - Representable functors rather than their index types (logarithms).
 - Specified via denotational homomorphisms.
@@ -11,7 +12,6 @@ and José N Oliveira (Haskell Symposium 2020) [URL?]. The main differences:
 
 module InductiveMatrix where
 
-import GHC.Exts (Coercible)
 import CatPrelude
 
 import qualified LinearFunction as F
@@ -30,12 +30,7 @@ type V' a = (Representable a, Eq (Rep a))
 class    V' a => V a
 instance V' a => V a
 
--- For deriving via. See https://github.com/conal/linalg/pull/54#discussion_r481393523
-type Representational1 r =
-  ((forall p q. Coercible p q => Coercible (r p) (r q)) :: Constraint)
-
-class    (V r, Representational1 r) => VR r
-instance (V r, Representational1 r) => VR r
+type VR r = (V r, Representational1 r)
 
 -- | Compositional linear map representation.
 data L :: * -> (* -> *) -> (* -> *) -> * where
