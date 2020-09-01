@@ -13,7 +13,6 @@ module InductiveMatrix where
 
 import CatPrelude
 
-import Control.Arrow ((***))
 import qualified LinearFunction as F
 import LinearFunction hiding (L)
 import Category.Isomorphism
@@ -69,17 +68,15 @@ instance LinearMap L where
 -- | Instances (all deducible from denotational homomorphisms)
 -------------------------------------------------------------------------------
 
--- This gives non-exhaustive pattern matching because pattern synonyms
--- cannot be made complete
 instance (Representable f, Representable g, Semiring s) => Additive (L s f g) where
-  zero                 = isoRev rowMajIso (pureRep (pureRep zero))
-  Scale s + Scale s'   = Scale (s + s')
+  zero = isoRev rowMajIso (pureRep (pureRep zero))
+  Scale s   + Scale s' = Scale (s + s')
   (f :|# g) + (h :| k) = (f + h) :| (g + k)
   (f :&# g) + (h :& k) = (f + h) :& (g + k)
-  ForkL ms  + Fork ms' = Fork (ms +^ ms')
-  JoinL ms  + Join ms' = Join (ms +^ ms')
+  ForkL fs  + Fork gs  = Fork (fs +^ gs)
+  JoinL fs  + Join gs  = Join (fs +^ gs)
 
-rowMajIso :: Iso (->) (L s a b) (b (a s))
+rowMajIso :: L s a b <-> b (a s)
 rowMajIso = fwd :<-> rev
   where
     fwd :: L s a b -> b (a s)
@@ -106,57 +103,69 @@ instance Semiring s => Category (L s) where
   m'        . JoinL ms  = JoinL (fmap (m' .) ms)  -- n-ary coproduct law
   JoinL ms' . ForkL ms  = sum (liftR2 (.) ms' ms) -- biproduct law
 
+instance Semiring s => Cartesian (:*:) (L s) where
+  (&&&) = (:&#)
+  unfork2 (p :&# q)               = (p,q)
+  unfork2 ((p :& q) :|# (r :& s)) = (p :|# r, q :|# s)
+  unfork2 (JoinL ms)              = (JoinL ### JoinL) (unzip (unfork2 <$> ms))
+
+pattern (:&) :: (Cartesian p k, Obj3 k a c d)
+             => (a `k` c) -> (a `k` d) -> (a `k` (c `p` d))
+pattern f :& g <- (unfork2 -> (f,g)) where (:&) = (&&&)
+{-# COMPLETE (:&) :: L #-}
+
+instance Semiring s => Cocartesian (:*:) (L s) where
+  (|||) = (:|#)
+  unjoin2 (p :|# q)               = (p,q)
+  unjoin2 ((p :| q) :&# (r :| s)) = (p :& r, q :& s)
+  unjoin2 (ForkL fs)              = (ForkL ### ForkL) (unzip (unjoin2 <$> fs))
+
+pattern (:|) :: (Cocartesian co k, Obj3 k a b c)
+             => (a `k` c) -> (b `k` c) -> ((a `co` b) `k` c)
+pattern f :| g <- (unjoin2 -> (f,g)) where (:|) = (|||)
+{-# COMPLETE (:|) :: L #-}
+
+instance Semiring s => Biproduct (:*:) (L s)
+
 instance (V r, Semiring s) => CartesianR r (:.:) (L s) where
   fork = ForkL
-  unfork (p :|# q)  = liftR2 (:|#) (unfork p) (unfork q)
-  unfork (ForkL ms) = ms
-  unfork (JoinL ms) = JoinL <$> distribute (unfork <$> ms)
--- {-# COMPLETE Fork :: L #-} -- Orphan COMPLETE pragmas not supported
--- (These are defined in Category.hs)
+  unfork (Fork fs :|# Fork gs) = liftR2 (:|#) fs gs
+  unfork (ForkL fs)            = fs
+  unfork (JoinL fs)            = JoinL <$> distribute (unfork <$> fs)
+
+pattern Fork :: (CartesianR h p k, Obj2 k f g) => h (k f g) -> k f (p h g)
+pattern Fork ms <- (unfork -> ms) where Fork = fork
+{-# COMPLETE Fork :: L #-}
 
 instance (V r, Foldable r, Semiring s) => CocartesianR r (:.:) (L s) where
   join = JoinL
-  unjoin (p :&# p') = liftR2 (:&#) (unjoin p) (unjoin p')
-  unjoin (JoinL ms) = ms
-  unjoin (ForkL ms) = fmap ForkL (distribute (fmap unjoin ms))
--- {-# COMPLETE Join :: L #-} -- See complete pragma above
+  unjoin (Join fs :&# Join gs) = liftR2 (:&#) fs gs
+  unjoin (JoinL fs)            = fs
+  unjoin (ForkL fs)            = fmap ForkL (distribute (fmap unjoin fs))
 
--- TODO: Add deriving capabilities
+pattern Join :: (CocartesianR h p k, Obj2 k f g) => h (k f g) -> k (p h f) g
+pattern Join ms <- (unjoin -> ms) where Join = join
+{-# COMPLETE Join :: L #-}
+
 instance Semiring s => Monoidal (:*:) (L s) where
   f ### g = (inl . f) :|# (inr . g)
--- deriving via (ViaCartesian (:*:) (L s)) instance Monoidal (:*:) (L s)
 
--- TODO: Add deriving via capabilities.
--- Couldn't get constraints to work when defining this instance on the Via
--- type in Category.hs
+-- deriving via (ViaCocartesian (:*:) (L s)) instance Monoidal (:*:) (L s)
+
 instance (V r, Semiring s) => MonoidalR r (:.:) (L s) where
   rmap fs = ForkL (liftR2 (.) fs exs)
 
+-- deriving via (ViaCartesian (:.:) (L s)) instance (MonoidalR r (:.:) (L s))
+
 -- Can't derive via (why?)
 -- Error:
--- [bios] [E] The exact Name ‘k1’ is not in scope
+-- The exact Name ‘k1’ is not in scope
 --   Probable cause: you used a unique Template Haskell name (NameU),
 --   perhaps via newName, but did not bind it
 --   If that's it, then -ddump-splices might be useful
---
--- deriving via (ViaCartesian (:.:) (L s)) instance () => (MonoidalR r (:.:) (L s))
 
--- TODO: Move to Category.hs
--- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
-instance Semiring s => Cartesian (:*:) (L s) where
-  (&&&) = (:&#)
-  unfork2 (p :&# q) = (p,q)
-  unfork2 ((unfork2 -> (p,q)) :|# (unfork2 -> (r,s))) = (p :|# r, q :|# s)
-  unfork2 (JoinL ms) = (JoinL *** JoinL) (unzip (unfork2 <$> ms))
--- {-# COMPLETE (:&) :: L #-} -- See complete pragma above
-
--- TODO: Move to Category.hs
--- See: https://en.wikipedia.org/wiki/Abelian_category#Definitions
-instance Semiring s => Cocartesian (:*:) (L s) where
-  (|||) = (:|#)
-  unjoin2 (p :|# q) = (p,q)
-  unjoin2 ((unjoin2 -> (p,q)) :&# (unjoin2 -> (r,s))) = (p :& r, q :& s)
-  unjoin2 (ForkL ms) = (ForkL *** ForkL) (unzip (unjoin2 <$> ms))
--- {-# COMPLETE (:|) :: L #-} -- See complete pragma above
-
-instance Semiring s => Biproduct (:*:) (L s)
+-- TODO: shrink to a self-contained example, and report as GHC bug.
+-- 
+-- Possibly related:
+--   https://gitlab.haskell.org/ghc/ghc/-/issues/15831
+--   https://github.com/haskell-compat/deriving-compat/issues/19

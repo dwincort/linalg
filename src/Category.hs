@@ -70,7 +70,7 @@ class (Category k, ObjBin p k) => Monoidal p k where
 -- TODO: Does it make any sense to move 'p' and its ObjBin into the method
 -- signatures, as in MonoidalR below? Should we instead move 'r' in MonoidalR
 -- from the method signatures to the class? It feels wrong to me (conal) that
--- there is only one binary product but many n-ary. In other sense, n-ary is
+-- there is only one binary product but many n-ary. In another sense, n-ary is
 -- even more restrictive than binary: the (type-indexed) tuple-ness of
 -- representable functors is wired in, and so is the object kind. For instance,
 -- we cannot currently handle n-ary coproducts that are not n-ary cartesian
@@ -104,9 +104,9 @@ fork2 = uncurry (&&&)
 
 -- Exercise: Prove that uncurry (&&&) and unfork2 form an isomorphism.
 
-pattern (:&) :: (Cartesian p k, Obj3 k a c d)
-             => (a `k` c) -> (a `k` d) -> (a `k` (c `p` d))
-pattern f :& g <- (unfork2 -> (f,g)) where (:&) = (&&&)
+-- pattern (:&) :: (Cartesian p k, Obj3 k a c d)
+--              => (a `k` c) -> (a `k` d) -> (a `k` (c `p` d))
+-- pattern f :& g <- (unfork2 -> (f,g)) where (:&) = (&&&)
 -- {-# complete (:&) #-}
 
 -- GHC error:
@@ -155,9 +155,9 @@ join2 = uncurry (|||)
 
 -- Exercise: Prove that uncurry (|||) and unjoin2 form an isomorphism.
 
-pattern (:|) :: (Cocartesian co k, Obj3 k a b c)
-             => (a `k` c) -> (b `k` c) -> ((a `co` b) `k` c)
-pattern f :| g <- (unjoin2 -> (f,g)) where (:|) = (|||)
+-- pattern (:|) :: (Cocartesian co k, Obj3 k a b c)
+--              => (a `k` c) -> (b `k` c) -> ((a `co` b) `k` c)
+-- pattern f :| g <- (unjoin2 -> (f,g)) where (:|) = (|||)
 -- {-# complete (:|) #-}  -- See (:&) above
 
 type Bicartesian p co k = (Cartesian p k, Cocartesian co k)
@@ -184,6 +184,68 @@ class (Monoidal p k, Closed e k) => MonoidalClosed p e k where
   apply = uncurry id
   uncurry g = apply . first g
   {-# MINIMAL curry, (uncurry | apply) #-}
+
+-------------------------------------------------------------------------------
+-- | n-ary counterparts (where n is a type, not a number).
+-------------------------------------------------------------------------------
+
+-- Assumes functor categories. TODO: look for a clean, poly-kinded alternative.
+-- I guess we could generalize from functor composition and functor application.
+
+type ObjR' r p k = ((forall z. Obj k z => Obj k (p r z)) :: Constraint)
+
+class    (Representable r, ObjR' r p k) => ObjR r p k
+instance (Representable r, ObjR' r p k) => ObjR r p k
+
+class (Category k, ObjR r p k) => MonoidalR r p k where
+  -- | n-ary version of '(###)'
+  rmap :: Obj2 k a b => r (a `k` b) -> (p r a `k` p r b)
+
+class MonoidalR r p k => CartesianR r p k where
+  {-# MINIMAL ((exs | unfork), (fork | dups)) #-}
+  exs  :: Obj k a => r (p r a `k` a)
+  exs = unfork id
+  dups :: Obj k a => a `k` p r a
+  dups = fork (pureRep id)
+  fork :: Obj2 k a c => r (a `k` c) -> (a `k` p r c)
+  fork fs = rmap fs . dups
+  unfork :: Obj2 k a b => a `k` p r b -> r (a `k` b)
+  unfork f = (. f) <$> exs
+
+-- pattern Fork :: (CartesianR h p k, Obj2 k f g) => h (k f g) -> k f (p h g)
+-- pattern Fork ms <- (unfork -> ms) where Fork = fork
+-- {-# complete Fork #-} -- See (:&) above
+
+-- Exercise: Prove that fork and unfork form an isomorphism.
+
+-- N-ary biproducts
+class MonoidalR r co k => CocartesianR r co k where
+  {-# MINIMAL ((ins | unjoin), (join | jams)) #-}
+  ins  :: Obj k a => r (a `k` co r a)
+  ins = unjoin id
+  jams :: Obj k a => co r a `k` a
+  jams = join (pureRep id)
+  join :: Obj2 k a b => r (a `k` b) -> co r a `k` b
+  join fs = jams . rmap fs
+  unjoin :: Obj2 k a b => co r a `k` b -> r (a `k` b)
+  unjoin f = (f .) <$> ins
+
+-- pattern Join :: (CocartesianR h p k, Obj2 k f g) => h (k f g) -> k (p h f) g
+-- pattern Join ms <- (unjoin -> ms) where Join = join
+-- {-# complete Join #-} -- See (:&) above
+
+type BicartesianR r p co k = (CartesianR r p k, CocartesianR r co k)
+
+-- When products and coproducts coincide. A class rather than type synonym,
+-- because there are more laws.
+class BicartesianR r p p k => BiproductR r p k
+
+-- Add Abelian and AbelianR?
+-- I think f + g = jam . (f ### g) . dup, and sum fs = jams . fork fs.
+
+-------------------------------------------------------------------------------
+-- | Deriving-via helpers
+-------------------------------------------------------------------------------
 
 -- | The 'ViaCartesian' type is designed to be used with `DerivingVia` to derive
 -- `Associative` and `Symmetric` instances using the `Cartesian` operations.
@@ -228,64 +290,6 @@ instance Cocartesian co k => Associative co (ViaCocartesian co k) where
   rassoc = (inl ||| inr.inl) ||| inr.inr
 instance Cocartesian co k => Symmetric co (ViaCocartesian co k) where
   swap = inr ||| inl
-
--------------------------------------------------------------------------------
--- | n-ary counterparts (where n is a type, not a number).
--------------------------------------------------------------------------------
-
--- Assumes functor categories. TODO: look for a clean, poly-kinded alternative.
--- I guess we could generalize from functor composition and functor application.
-
-type ObjR' r p k = ((forall z. Obj k z => Obj k (p r z)) :: Constraint)
-
-class    (Representable r, ObjR' r p k) => ObjR r p k
-instance (Representable r, ObjR' r p k) => ObjR r p k
-
-class (Category k, ObjR r p k) => MonoidalR r p k where
-  -- | n-ary version of '(###)'
-  rmap :: Obj2 k a b => r (a `k` b) -> (p r a `k` p r b)
-
-class MonoidalR r p k => CartesianR r p k where
-  {-# MINIMAL ((exs | unfork), (fork | dups)) #-}
-  exs  :: Obj k a => r (p r a `k` a)
-  exs = unfork id
-  dups :: Obj k a => a `k` p r a
-  dups = fork (pureRep id)
-  fork :: Obj2 k a c => r (a `k` c) -> (a `k` p r c)
-  fork fs = rmap fs . dups
-  unfork :: Obj2 k a b => a `k` p r b -> r (a `k` b)
-  unfork f = (. f) <$> exs
-
-pattern Fork :: (CartesianR h p k, Obj2 k f g) => h (k f g) -> k f (p h g)
-pattern Fork ms <- (unfork -> ms) where Fork = fork
--- {-# complete Fork #-} -- See (:&) above
-
--- Exercise: Prove that fork and unfork form an isomorphism.
-
--- N-ary biproducts
-class MonoidalR r co k => CocartesianR r co k where
-  {-# MINIMAL ((ins | unjoin), (join | jams)) #-}
-  ins  :: Obj k a => r (a `k` co r a)
-  ins = unjoin id
-  jams :: Obj k a => co r a `k` a
-  jams = join (pureRep id)
-  join :: Obj2 k a b => r (a `k` b) -> co r a `k` b
-  join fs = jams . rmap fs
-  unjoin :: Obj2 k a b => co r a `k` b -> r (a `k` b)
-  unjoin f = (f .) <$> ins
-
-pattern Join :: (CocartesianR h p k, Obj2 k f g) => h (k f g) -> k (p h f) g
-pattern Join ms <- (unjoin -> ms) where Join = join
--- {-# complete Join #-} -- See (:&) above
-
-type BicartesianR r p co k = (CartesianR r p k, CocartesianR r co k)
-
--- When products and coproducts coincide. A class rather than type synonym,
--- because there are more laws.
-class BicartesianR r p p k => BiproductR r p k
-
--- Add Abelian and AbelianR?
--- I think f + g = jam . (f &&& g), and sum fs = jams . fork fs.
 
 -------------------------------------------------------------------------------
 -- | Function instances
