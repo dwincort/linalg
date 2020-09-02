@@ -114,3 +114,6 @@ type f <--> g = forall a. f a <-> g a
 
 fmapIso :: Functor f => a <-> b -> f a <-> f b
 fmapIso (f :<-> g) = (fmap f :<-> fmap g)
+
+flipIso :: (a -> b -> c) <-> (b -> a -> c)
+flipIso = flip :<-> flip
