@@ -2,8 +2,9 @@
 
 {- |
 "Inductive matrices", as in "Type Your Matrices for Great Good: A Haskell
-Library of Typed Matrices and Applications (Functional Pearl)" Armando Santos
-and José N Oliveira (Haskell Symposium 2020) [URL?]. The main differences:
+Library of Typed Matrices and Applications (Functional Pearl)" by Armando Santos
+and José N Oliveira (Haskell Symposium 2020)
+<https://github.com/bolt12/tymfgg-pearl>. The main differences:
 
 - Representable functors rather than their index types (logarithms).
 - Specified via denotational homomorphisms.
@@ -29,14 +30,16 @@ type V' a = (Representable a, Eq (Rep a))
 class    V' a => V a
 instance V' a => V a
 
+type VR r = (V r, Representational1 r)
+
 -- | Compositional linear map representation.
 data L :: * -> (* -> *) -> (* -> *) -> * where
   Scale :: Semiring s => s -> L s Par1 Par1
   (:|#) :: (C3 V a b c, Additive s) => L s a c -> L s b c -> L s (a :*: b) c
   (:&#) :: C3 V a c k => L s a c -> L s a k -> L s a (c :*: k)
-  JoinL :: (C2 V a b, Representable r, Eq (Rep r), Foldable r, Additive s)
+  JoinL :: (C2 V a b, VR r, Foldable r, Additive s)
         => r (L s a b) -> L s (r :.: a) b
-  ForkL :: C3 V a b r => r (L s a b) -> L s a (r :.: b)
+  ForkL :: (C2 V a b, VR r) => r (L s a b) -> L s a (r :.: b)
 
 instance LinearMap L where
   mu = fwd :<-> rev
@@ -127,7 +130,7 @@ pattern f :| g <- (unjoin2 -> (f,g)) where (:|) = (|||)
 
 instance Semiring s => Biproduct (:*:) (L s)
 
-instance (V r, Semiring s) => CartesianR r (:.:) (L s) where
+instance (VR r, Semiring s) => CartesianR r (:.:) (L s) where
   fork = ForkL
   unfork (Fork fs :|# Fork gs) = liftR2 (:|#) fs gs
   unfork (ForkL fs)            = fs
@@ -137,7 +140,7 @@ pattern Fork :: (CartesianR h p k, Obj2 k f g) => h (k f g) -> k f (p h g)
 pattern Fork ms <- (unfork -> ms) where Fork = fork
 {-# COMPLETE Fork :: L #-}
 
-instance (V r, Foldable r, Semiring s) => CocartesianR r (:.:) (L s) where
+instance (VR r, Foldable r, Semiring s) => CocartesianR r (:.:) (L s) where
   join = JoinL
   unjoin (Join fs :&# Join gs) = liftR2 (:&#) fs gs
   unjoin (JoinL fs)            = fs
@@ -147,25 +150,7 @@ pattern Join :: (CocartesianR h p k, Obj2 k f g) => h (k f g) -> k (p h f) g
 pattern Join ms <- (unjoin -> ms) where Join = join
 {-# COMPLETE Join :: L #-}
 
-instance Semiring s => Monoidal (:*:) (L s) where
-  f ### g = (inl . f) :|# (inr . g)
+deriving via ViaCocartesian (L s) instance Semiring s => Monoidal (:*:) (L s)
 
--- deriving via (ViaCocartesian (:*:) (L s)) instance Monoidal (:*:) (L s)
-
-instance (V r, Semiring s) => MonoidalR r (:.:) (L s) where
-  rmap fs = ForkL (liftR2 (.) fs exs)
-
--- deriving via (ViaCartesian (:.:) (L s)) instance (MonoidalR r (:.:) (L s))
-
--- Can't derive via (why?)
--- Error:
--- The exact Name ‘k1’ is not in scope
---   Probable cause: you used a unique Template Haskell name (NameU),
---   perhaps via newName, but did not bind it
---   If that's it, then -ddump-splices might be useful
-
--- TODO: shrink to a self-contained example, and report as GHC bug.
--- 
--- Possibly related:
---   https://gitlab.haskell.org/ghc/ghc/-/issues/15831
---   https://github.com/haskell-compat/deriving-compat/issues/19
+deriving via ViaCartesian (L s)
+  instance (VR r, Semiring s) => MonoidalR r (:.:) (L s)
