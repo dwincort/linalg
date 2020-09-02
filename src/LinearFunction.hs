@@ -207,3 +207,28 @@ outer :: (Representable a, Foldable a, Representable b, Semiring s)
       => b s -> a s -> L s a b
 b `outer` a = fromScalar b . toScalar a
 
+
+-------------------------------------------------------------------------------
+-- | Pattern synonyms
+-------------------------------------------------------------------------------
+
+-- If & when GHC allows more polymorphic patterns, these definitions will move
+-- to Category.hs
+
+pattern (:&) :: (Cartesian p k, Obj3 k a c d)
+             => (a `k` c) -> (a `k` d) -> (a `k` (c `p` d))
+pattern f :& g <- (unfork2 -> (f,g)) where (:&) = (&&&)
+{-# COMPLETE (:&) :: L #-}
+
+pattern (:|) :: (Cocartesian co k, Obj3 k a b c)
+             => (a `k` c) -> (b `k` c) -> ((a `co` b) `k` c)
+pattern f :| g <- (unjoin2 -> (f,g)) where (:|) = (|||)
+{-# COMPLETE (:|) :: L #-}
+
+pattern Fork :: (CartesianR h p k, Obj2 k f g) => h (k f g) -> k f (p h g)
+pattern Fork ms <- (unfork -> ms) where Fork = fork
+{-# COMPLETE Fork :: L #-}
+
+pattern Join :: (CocartesianR h p k, Obj2 k f g) => h (k f g) -> k (p h f) g
+pattern Join ms <- (unjoin -> ms) where Join = join
+{-# COMPLETE Join :: L #-}
