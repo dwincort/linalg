@@ -11,7 +11,6 @@ import qualified Prelude as P
 import Prelude hiding (id,(.),curry,uncurry)
 import GHC.Types (Constraint)
 import GHC.Exts (Coercible)
-import qualified Control.Arrow as A
 import Data.Monoid (Ap(..))
 import Data.Functor.Rep
 
@@ -308,25 +307,18 @@ instance Category (->) where
   id = P.id
   (.) = (P..)
 
-instance Monoidal (:*) (->) where
-  (###) = (A.***)
-
 instance Cartesian (:*) (->) where
   exl = fst
   exr = snd
   dup = \ a -> (a,a)
 
-instance Monoidal (:+) (->) where
-  (###) = (A.+++)
-
 instance Cocartesian (:+) (->) where
   inl = P.Left
   inr = P.Right
-  jam = id A.||| id
+  jam = id `either` id
   -- Equivalently,
   -- jam (Left  a) = a
   -- jam (Right a) = a
-  -- Also, could use `either` or `bimap` instead of `A.|||`
 
 instance Closed (->) (->) where (h ^^^ f) g = h . g . f
 
@@ -339,18 +331,17 @@ deriving via (ViaCartesian   (->)) instance Symmetric   (:*) (->)
 deriving via (ViaCocartesian (->)) instance Associative (:+) (->)
 deriving via (ViaCocartesian (->)) instance Symmetric   (:+) (->)
 
-instance Representable r => MonoidalR r Ap (->) where
-  rmap rab (Ap ra) = Ap (liftR2 ($) rab ra)
-
-instance Representable r => CartesianR r Ap (->) where
+instance RepresentableR r => CartesianR r Ap (->) where
   exs = tabulate (flip index)
   dups = pureRep
 
 data RepAnd r x = RepAnd (Rep r) x
 
-instance Representable r => MonoidalR r RepAnd (->) where
-  rmap fs (RepAnd i a) = RepAnd i ((fs `index` i) a)
-
-instance Representable r => CocartesianR r RepAnd (->) where
+instance RepresentableR r => CocartesianR r RepAnd (->) where
   ins = tabulate RepAnd
   jams (RepAnd _ a) = a
+
+deriving via (ViaCartesian   (->)) instance Monoidal    (:*) (->)
+deriving via (ViaCocartesian (->)) instance Monoidal    (:+) (->)
+deriving via (ViaCartesian   (->)) instance RepresentableR r => MonoidalR r Ap (->)
+deriving via (ViaCocartesian (->)) instance RepresentableR r => MonoidalR r RepAnd (->)
