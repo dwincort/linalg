@@ -88,10 +88,8 @@ joinIso = join :<-> unjoin
 forkIso :: (CartesianR r p k, Obj2 k a b) => r (a `k` b) <-> (a `k` p r b)
 forkIso = fork :<-> unfork
 
-curryIso :: ((a :* b) -> c) <-> (a -> (b -> c))
+curryIso :: (MonoidalClosed p e k, Obj3 k a b c) => ((a `p` b) `k` c) <-> (a `k` (b `e` c))
 curryIso = curry :<-> uncurry
-
--- TODO: generalize curry from (->) to cartesian closed
 
 newIso :: Newtype a => a <-> O a
 newIso = unpack :<-> pack
