@@ -15,7 +15,7 @@ module InductiveMatrix where
 import CatPrelude
 
 import qualified LinearFunction as F
-import LinearFunction hiding (L)
+import LinearFunction (Scalable(..),LinearMap(..))
 import Category.Isomorphism
 
 -------------------------------------------------------------------------------
@@ -112,21 +112,11 @@ instance Semiring s => Cartesian (:*:) (L s) where
   unfork2 ((p :& q) :|# (r :& s)) = (p :|# r, q :|# s)
   unfork2 (JoinL ms)              = (JoinL ### JoinL) (unzip (unfork2 <$> ms))
 
-pattern (:&) :: (Cartesian p k, Obj3 k a c d)
-             => (a `k` c) -> (a `k` d) -> (a `k` (c `p` d))
-pattern f :& g <- (unfork2 -> (f,g)) where (:&) = (&&&)
-{-# COMPLETE (:&) :: L #-}
-
 instance Semiring s => Cocartesian (:*:) (L s) where
   (|||) = (:|#)
   unjoin2 (p :|# q)               = (p,q)
   unjoin2 ((p :| q) :&# (r :| s)) = (p :& r, q :& s)
   unjoin2 (ForkL fs)              = (ForkL ### ForkL) (unzip (unjoin2 <$> fs))
-
-pattern (:|) :: (Cocartesian co k, Obj3 k a b c)
-             => (a `k` c) -> (b `k` c) -> ((a `co` b) `k` c)
-pattern f :| g <- (unjoin2 -> (f,g)) where (:|) = (|||)
-{-# COMPLETE (:|) :: L #-}
 
 instance Semiring s => Biproduct (:*:) (L s)
 
@@ -136,21 +126,39 @@ instance (VR r, Semiring s) => CartesianR r (:.:) (L s) where
   unfork (ForkL fs)            = fs
   unfork (JoinL fs)            = JoinL <$> distribute (unfork <$> fs)
 
-pattern Fork :: (CartesianR h p k, Obj2 k f g) => h (k f g) -> k f (p h g)
-pattern Fork ms <- (unfork -> ms) where Fork = fork
-{-# COMPLETE Fork :: L #-}
-
 instance (VR r, Foldable r, Semiring s) => CocartesianR r (:.:) (L s) where
   join = JoinL
   unjoin (Join fs :&# Join gs) = liftR2 (:&#) fs gs
   unjoin (JoinL fs)            = fs
   unjoin (ForkL fs)            = fmap ForkL (distribute (fmap unjoin fs))
 
-pattern Join :: (CocartesianR h p k, Obj2 k f g) => h (k f g) -> k (p h f) g
-pattern Join ms <- (unjoin -> ms) where Join = join
-{-# COMPLETE Join :: L #-}
-
 deriving via ViaCocartesian (L s) instance Semiring s => Monoidal (:*:) (L s)
 
 deriving via ViaCartesian (L s)
   instance (VR r, Semiring s) => MonoidalR r (:.:) (L s)
+
+
+-------------------------------------------------------------------------------
+-- | Pattern synonyms
+-------------------------------------------------------------------------------
+
+-- If & when GHC allows more polymorphic patterns, these definitions will move
+-- to Category.hs
+
+pattern (:&) :: (Cartesian p k, Obj3 k a c d)
+             => (a `k` c) -> (a `k` d) -> (a `k` (c `p` d))
+pattern f :& g <- (unfork2 -> (f,g)) where (:&) = (&&&)
+{-# COMPLETE (:&) :: L #-}
+
+pattern (:|) :: (Cocartesian co k, Obj3 k a b c)
+             => (a `k` c) -> (b `k` c) -> ((a `co` b) `k` c)
+pattern f :| g <- (unjoin2 -> (f,g)) where (:|) = (|||)
+{-# COMPLETE (:|) :: L #-}
+
+pattern Fork :: (CartesianR h p k, Obj2 k f g) => h (k f g) -> k f (p h g)
+pattern Fork ms <- (unfork -> ms) where Fork = fork
+{-# COMPLETE Fork :: L #-}
+
+pattern Join :: (CocartesianR h p k, Obj2 k f g) => h (k f g) -> k (p h f) g
+pattern Join ms <- (unjoin -> ms) where Join = join
+{-# COMPLETE Join :: L #-}

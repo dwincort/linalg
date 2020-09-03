@@ -104,22 +104,6 @@ fork2 = uncurry (&&&)
 
 -- Exercise: Prove that uncurry (&&&) and unfork2 form an isomorphism.
 
--- pattern (:&) :: (Cartesian p k, Obj3 k a c d)
---              => (a `k` c) -> (a `k` d) -> (a `k` (c `p` d))
--- pattern f :& g <- (unfork2 -> (f,g)) where (:&) = (&&&)
--- {-# complete (:&) #-}
-
--- GHC error:
---
---   A type signature must be provided for a set of polymorphic pattern synonyms.
---   In {-# complete :& #-}
---
--- Instead, give a typed COMPLETE pragma with each cartesian category instance.
---
--- Oops! GHC objects to these more specific 'COMPLETE' pragmas (in modules
--- importing this one) as "orphans" and rejects them. Until this GHC situation
--- improves, we'll have to <find another solution>.
-
 class Associative p k where
   lassoc :: Obj3 k a b c => (a `p` (b `p` c)) `k` ((a `p` b) `p` c)
   rassoc :: Obj3 k a b c => ((a `p` b) `p` c) `k` (a `p` (b `p` c))
@@ -154,11 +138,6 @@ join2 :: (Cocartesian co k, Obj3 k a b c)
 join2 = uncurry (|||)
 
 -- Exercise: Prove that uncurry (|||) and unjoin2 form an isomorphism.
-
--- pattern (:|) :: (Cocartesian co k, Obj3 k a b c)
---              => (a `k` c) -> (b `k` c) -> ((a `co` b) `k` c)
--- pattern f :| g <- (unjoin2 -> (f,g)) where (:|) = (|||)
--- {-# complete (:|) #-}  -- See (:&) above
 
 type Bicartesian p co k = (Cartesian p k, Cocartesian co k)
 
@@ -212,10 +191,6 @@ class MonoidalR r p k => CartesianR r p k where
   unfork :: Obj2 k a b => a `k` p r b -> r (a `k` b)
   unfork f = (. f) <$> exs
 
--- pattern Fork :: (CartesianR h p k, Obj2 k f g) => h (k f g) -> k f (p h g)
--- pattern Fork ms <- (unfork -> ms) where Fork = fork
--- {-# complete Fork #-} -- See (:&) above
-
 -- Exercise: Prove that fork and unfork form an isomorphism.
 
 -- N-ary biproducts
@@ -229,10 +204,6 @@ class MonoidalR r co k => CocartesianR r co k where
   join fs = jams . rmap fs
   unjoin :: Obj2 k a b => co r a `k` b -> r (a `k` b)
   unjoin f = (f .) <$> ins
-
--- pattern Join :: (CocartesianR h p k, Obj2 k f g) => h (k f g) -> k (p h f) g
--- pattern Join ms <- (unjoin -> ms) where Join = join
--- {-# complete Join #-} -- See (:&) above
 
 type BicartesianR r p co k = (CartesianR r p k, CocartesianR r co k)
 
@@ -343,5 +314,43 @@ instance RepresentableR r => CocartesianR r RepAnd (->) where
 
 deriving via (ViaCartesian   (->)) instance Monoidal    (:*) (->)
 deriving via (ViaCocartesian (->)) instance Monoidal    (:+) (->)
-deriving via (ViaCartesian   (->)) instance RepresentableR r => MonoidalR r Ap (->)
-deriving via (ViaCocartesian (->)) instance RepresentableR r => MonoidalR r RepAnd (->)
+
+deriving via (ViaCartesian   (->))
+  instance RepresentableR r => MonoidalR r Ap (->)
+deriving via (ViaCocartesian (->))
+  instance RepresentableR r => MonoidalR r RepAnd (->)
+
+-------------------------------------------------------------------------------
+-- | Pattern synonyms
+-------------------------------------------------------------------------------
+
+#if 0
+
+-- GHC error:
+--
+--   A type signature must be provided for a set of polymorphic pattern synonyms.
+--   In {-# COMPLETE :& #-}
+--
+-- See discussion https://github.com/conal/linalg/pull/54. This situation might
+-- improve: http://mail.haskell.org/pipermail/ghc-devs/2020-August/019190.
+-- Meanwhile, specialize these definitions for each representation.
+
+pattern (:&) :: (Cartesian p k, Obj3 k a c d)
+             => (a `k` c) -> (a `k` d) -> (a `k` (c `p` d))
+pattern f :& g <- (unfork2 -> (f,g)) where (:&) = (&&&)
+{-# COMPLETE (:&) #-}
+
+pattern (:|) :: (Cocartesian co k, Obj3 k a b c)
+             => (a `k` c) -> (b `k` c) -> ((a `co` b) `k` c)
+pattern f :| g <- (unjoin2 -> (f,g)) where (:|) = (|||)
+{-# COMPLETE (:|) #-}
+
+pattern Fork :: (CartesianR h p k, Obj2 k f g) => h (k f g) -> k f (p h g)
+pattern Fork ms <- (unfork -> ms) where Fork = fork
+{-# COMPLETE Fork #-}
+
+pattern Join :: (CocartesianR h p k, Obj2 k f g) => h (k f g) -> k (p h f) g
+pattern Join ms <- (unjoin -> ms) where Join = join
+{-# COMPLETE Join #-}
+
+#endif
