@@ -115,3 +115,10 @@ fmapIso (f :<-> g) = (fmap f :<-> fmap g)
 
 flipIso :: (a -> b -> c) <-> (b -> a -> c)
 flipIso = flip :<-> flip
+
+distributeIso :: (Representable f, Representable g) => f (g a) <-> g (f a)
+-- distributeIso = inv repIso . fmapIso (inv repIso) . flipIso . fmapIso repIso . repIso
+distributeIso = distribute :<-> distribute
+
+collectIso :: (Representable f, Representable g) => f a <-> b -> f (g a) <-> g b
+collectIso f = fmapIso f . distributeIso
