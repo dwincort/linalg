@@ -25,26 +25,22 @@ newtype L (s :: *) (f :: * -> *) (g :: * -> *) = L { unL :: g (f s) }
   deriving (Show, Generic)
 
 instance Newtype (L s f g)
+-- type O (L s f g) = g (f s)
+
 
 instance LinearMap L where
   mu = inv newIso . distributeIso . fmapIso dotIso . newIso
-  --                          L s f g
-  -- newIso               ==> g (f s)
-  -- fmapIso dotIso       ==> g (f s -> s)
-  -- repIso               ==> Rep g -> f s -> s
-  -- flipIso              ==> f s -> Rep g -> s
-  -- fmapIso (inv repIso) ==> f s -> g s
-  -- inv newIso           ==> F.L s f g
+  --                    L s f g
+  -- newIso         ==> g (f s)
+  -- fmapIso dotIso ==> g (f s -> s)
+  -- distributeIso  ==> f s -> g s
+  -- inv newIso     ==> F.L s f g
 
-  -- mu = fwd :<-> rev
-  --   where
-  --     fwd (L gfs) = F.L $ flip fmap gfs . dot
-  --     rev (F.L m) = L $ collect m $ unL id
 
 instance Category (L s) where
   type Obj' (L s) a = (Semiring s, V a)
   id = L basis
-  b . a
+  L b . L a
   -- Trying to prove:
   --  L b . L a = L $ fmap (flip fmap (distribute a) . dot) b
   -- which is synonymous with
@@ -93,8 +89,18 @@ instance Category (L s) where
   --     $ \x -> fmap (dot (fmap (dot x) (unL a))) (unL b)
   --
   -- pointfree
-   = L $ fmap dot' $ distribute
-       $ flip fmap (unL b) . dot . flip fmap (unL a) . dot
+   = L $ fmap dot' $ distribute (flip fmap b . dot . flip fmap a . dot)
+  --
+  --  ???
+   -- = L $ fmap dot' $ fmap (dot . flip fmap (distribute a) . dot) b
+  --
+  --  fuse fmap; dot' . dot = id
+   -- = L $ fmap (flip fmap (distribute a) . dot) b
+
+
+-- Need to prove:
+--     distribute (flip fmap b . dot . flip fmap a . dot)
+--  == fmap (dot . flip fmap (distribute a) . dot) b
 
 
 -- How can I bring dot and dot' together to form an identity?
@@ -102,7 +108,7 @@ instance Category (L s) where
 --
 -- Are either of these statements true?
 -- distribute (g . f) ?= fmap (. f) (distribute g)
--- distribute (\x -> fmap (g x) y) ?= fmap (distribute g) y
+-- distribute (flip fmap y . f) ?= fmap (distribute f) y
 
 
 
@@ -115,25 +121,25 @@ instance Category (L s) where
 
 instance (Representable f, Representable g, Semiring s) => Additive (L s f g) where
   zero = pureL zero
-  (+)  = pointwise2 (+)
+  (+)  = liftL2 (+)
 
 pureL :: (Representable f, Representable g) => a -> L a f g
 pureL = pack . pureRep . pureRep
 
-pointwise2 :: (Representable f, Representable g) => (a -> b -> c) -> L a f g -> L b f g -> L c f g
-pointwise2 = inNew2 . liftR2 . liftR2
+liftL2 :: (Representable f, Representable g) => (a -> b -> c) -> L a f g -> L b f g -> L c f g
+liftL2 = inNew2 . liftR2 . liftR2
 
 fork2LIso :: (L s a c :* L s a d) <-> L s a (c :*: d)
 fork2LIso = inv newIso . inv newIso . (newIso ### newIso)
 
-join2LIso :: (Representable a, Representable c, Representable d) => (L s c a :* L s d a) <-> L s (c :*: d) a
+join2LIso :: (C3 Representable a c d) => (L s c a :* L s d a) <-> L s (c :*: d) a
 join2LIso = inv newIso . distributeIso . inv newIso . (distributeIso . newIso ### distributeIso . newIso)
 
-forkLIso :: Representable r => r (L s a b) <-> L s a (r :.: b)
-forkLIso = inv newIso . inv newIso . fmapIso newIso
+forkLIso :: RepresentableR r => r (L s a b) <-> L s a (r :.: b)
+forkLIso = inv newIso . inv newIso . coerceIso
 
-joinLIso :: (Representable b, Representable r) => r (L s a b) <-> L s (r :.: a) b
-joinLIso = inv newIso . collectIso (inv newIso) . fmapIso newIso
+joinLIso :: (Representable b, RepresentableR r) => r (L s a b) <-> L s (r :.: a) b
+joinLIso = inv newIso . collectIso (inv newIso) . coerceIso
 
 instance Semiring s => Cartesian (:*:) (L s) where
   (&&&)   = curry $ isoFwd fork2LIso
