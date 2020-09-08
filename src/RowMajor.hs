@@ -10,7 +10,7 @@ module RowMajor where
 
 import CatPrelude
 
-import LinearFunction hiding (L(..))
+import LinearFunction (LinearMap(..), Scalable(..), basis, dot, dot', dotIso)
 import Category.Isomorphism
 
 
@@ -29,7 +29,7 @@ instance Newtype (L s f g)
 -- type O (L s f g) = g (f s)
 
 
-instance LinearMap L where
+instance LinearMap s (L s) where
   mu = inv newIso . distributeIso . fmapIso dotIso . newIso
   --                    L s f g
   -- newIso         ==> g (f s)
@@ -141,8 +141,8 @@ pureL = pack . pureRep . pureRep
 liftL2 :: (Representable f, Representable g) => (a -> b -> c) -> L a f g -> L b f g -> L c f g
 liftL2 = inNew2 . liftR2 . liftR2
 
-scaleLIso :: L s Par1 Par1 <-> s
-scaleLIso = newIso . newIso . newIso
+scaleLIso :: s <-> L s Par1 Par1
+scaleLIso = coerceIso
 
 fork2LIso :: (L s a c :* L s a d) <-> L s a (c :*: d)
 fork2LIso = inv newIso . inv newIso . (newIso ### newIso)
@@ -151,15 +151,16 @@ join2LIso :: (C3 Representable a c d) => (L s c a :* L s d a) <-> L s (c :*: d) 
 join2LIso = inv newIso . distributeIso . inv newIso . (distributeIso . newIso ### distributeIso . newIso)
 
 forkLIso :: RepresentableR r => r (L s a b) <-> L s a (r :.: b)
-forkLIso = inv newIso . inv newIso . coerceIso
+forkLIso = coerceIso
 
 joinLIso :: (Representable b, RepresentableR r) => r (L s a b) <-> L s (r :.: a) b
 joinLIso = inv newIso . collectIso (inv newIso) . coerceIso
 
-instance Scalable L where
-  scale = isoRev scaleLIso
+instance Scalable s (L s) where
+  scale   = isoFwd scaleLIso
+  unscale = isoRev scaleLIso
 
-instance Semiring s => Cartesian (:*:) (L s) where
+instance Cartesian (:*:) (L s) where
   (&&&)   = curry $ isoFwd fork2LIso
   unfork2 = isoRev fork2LIso
 
@@ -168,7 +169,7 @@ pattern (:&) :: (Cartesian p k, Obj3 k a c d)
 pattern f :& g <- (unfork2 -> (f,g)) where (:&) = (&&&)
 {-# COMPLETE (:&) :: L #-}
 
-instance Semiring s => Cocartesian (:*:) (L s) where
+instance Cocartesian (:*:) (L s) where
   (|||)   = curry $ isoFwd join2LIso
   unjoin2 = isoRev join2LIso
 
@@ -177,7 +178,7 @@ pattern (:|) :: (Cocartesian co k, Obj3 k a b c)
 pattern f :| g <- (unjoin2 -> (f,g)) where (:|) = (|||)
 {-# COMPLETE (:|) :: L #-}
 
-instance (VR r, Semiring s) => CartesianR r (:.:) (L s) where
+instance VR r => CartesianR r (:.:) (L s) where
   fork   = isoFwd forkLIso
   unfork = isoRev forkLIso
 
@@ -185,7 +186,7 @@ pattern Fork :: (CartesianR h p k, Obj2 k f g) => h (k f g) -> k f (p h g)
 pattern Fork ms <- (unfork -> ms) where Fork = fork
 {-# COMPLETE Fork :: L #-}
 
-instance (VR r, Semiring s) => CocartesianR r (:.:) (L s) where
+instance VR r => CocartesianR r (:.:) (L s) where
   join   = isoFwd joinLIso
   unjoin = isoRev joinLIso
 
@@ -194,13 +195,12 @@ pattern Join ms <- (unjoin -> ms) where Join = join
 {-# COMPLETE Join :: L #-}
 
 
-instance Semiring s => Biproduct (:*:) (L s)
-instance (VR r, Semiring s) => BiproductR r (:.:) (L s)
+instance Biproduct (:*:) (L s)
+instance VR r => BiproductR r (:.:) (L s)
 
-deriving via ViaCartesian (L s) instance Semiring s => Monoidal (:*:) (L s)
+deriving via ViaCartesian (L s) instance Monoidal (:*:) (L s)
 
-deriving via ViaCartesian (L s)
-  instance (VR r, Semiring s) => MonoidalR r (:.:) (L s)
+deriving via ViaCartesian (L s) instance VR r => MonoidalR r (:.:) (L s)
 
 
 par1Iso :: Functor a => (a :.: Par1) <--> a
