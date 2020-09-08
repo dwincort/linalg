@@ -8,10 +8,10 @@ module CatPrelude (
   , module Data.Functor.Rep
   , module GHC.Generics
   , module GHC.Types
-  , Newtype(..)
+  , module Control.Newtype.Generics
   ) where
 
-import Prelude hiding ((*), (+), id, (.), sum, unzip, curry, uncurry)
+import Prelude hiding ((*), (+), id, (.), product, sum, unzip, curry, uncurry)
 
 import Misc
 import Category

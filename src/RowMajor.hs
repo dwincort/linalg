@@ -1,11 +1,12 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 {- |
 "Functor Matrices", or a "matrix" represented by a representable functor of
 representable functors.
 -}
 
-module FunctorMatrix where
+module RowMajor where
 
 import CatPrelude
 
@@ -36,10 +37,13 @@ instance LinearMap L where
   -- distributeIso  ==> f s -> g s
   -- inv newIso     ==> F.L s f g
 
+-- f (g s) ==> f s -> g s
+-- I have (f s -> f s -> g s)
 
 instance Category (L s) where
   type Obj' (L s) a = (Semiring s, V a)
   id = L basis
+  (.) :: forall f g h. (Semiring s, C3 V f g h) => L s g h -> L s f g -> L s f h
   L b . L a
   -- Trying to prove:
   --  L b . L a = L $ fmap (flip fmap (distribute a) . dot) b
@@ -85,36 +89,44 @@ instance Category (L s) where
   --     $ \x -> fmap (flip dot (fmap (flip dot x) (unL a))) (unL b)
   --
   -- flip dot == dot
-  -- = L $ fmap dot' $ distribute
-  --     $ \x -> fmap (dot (fmap (dot x) (unL a))) (unL b)
+   -- = L $ fmap (dot' @f) $ distribute @h @((->) (f s))
+   --    $ \x -> fmap (dot @g (fmap (dot @f x) a)) b
   --
   -- pointfree
-   = L $ fmap dot' $ distribute (flip fmap b . dot . flip fmap a . dot)
+   = L $ fmap (dot' @f) $ distribute @h @((->) (f s))
+      $ flip fmap b . dot @g . flip fmap a . dot @f
   --
-  --  ???
-   -- = L $ fmap dot' $ fmap (dot . flip fmap (distribute a) . dot) b
+  -- distribute (flip fmap y . f) ?= fmap (distribute f) y
+   -- = L $ fmap (dot' @f) $ fmap
+   --    (distribute (dot @g . flip fmap a . dot @f)) b
   --
-  --  fuse fmap; dot' . dot = id
-   -- = L $ fmap (flip fmap (distribute a) . dot) b
+  -- distribute the distribute by magic
+   -- = L $ fmap (dot' @f) $ fmap
+   --    (distribute (dot @f) . flip fmap (distribute a) . distribute (dot @g)) b
+  --
+  -- distribute dot == flip dot == dot
+   -- = L $ fmap (dot' @f) $ fmap
+   --    (dot @f . flip fmap (distribute a) . dot @g) b
+  --
+  -- combine fmap
+   -- = L $ fmap (dot' @f . dot @f . flip fmap (distribute a) . dot @g) b
+  --
+  -- dot' . dot == id
+   -- = L $ fmap (flip fmap (distribute a) . dot @g) b
+
 
 
 -- Need to prove:
 --     distribute (flip fmap b . dot . flip fmap a . dot)
 --  == fmap (dot . flip fmap (distribute a) . dot) b
 
+-- Perhaps by proving
+--   distribute (flip fmap y . f) ?= fmap (distribute f) y
+-- along with something about distributing distribute:
+--   distribute (f . flip fmap a . g) ?= distribute g . flip fmap (distribute a) . distribute f
 
--- How can I bring dot and dot' together to form an identity?
--- How do I deal with distribute?
---
--- Are either of these statements true?
+-- Is this true (and if so, useful)?
 -- distribute (g . f) ?= fmap (. f) (distribute g)
--- distribute (flip fmap y . f) ?= fmap (distribute f) y
-
-
-
-
-
-
 
 
 
@@ -129,6 +141,9 @@ pureL = pack . pureRep . pureRep
 liftL2 :: (Representable f, Representable g) => (a -> b -> c) -> L a f g -> L b f g -> L c f g
 liftL2 = inNew2 . liftR2 . liftR2
 
+scaleLIso :: L s Par1 Par1 <-> s
+scaleLIso = newIso . newIso . newIso
+
 fork2LIso :: (L s a c :* L s a d) <-> L s a (c :*: d)
 fork2LIso = inv newIso . inv newIso . (newIso ### newIso)
 
@@ -140,6 +155,9 @@ forkLIso = inv newIso . inv newIso . coerceIso
 
 joinLIso :: (Representable b, RepresentableR r) => r (L s a b) <-> L s (r :.: a) b
 joinLIso = inv newIso . collectIso (inv newIso) . coerceIso
+
+instance Scalable L where
+  scale = isoRev scaleLIso
 
 instance Semiring s => Cartesian (:*:) (L s) where
   (&&&)   = curry $ isoFwd fork2LIso
@@ -183,3 +201,10 @@ deriving via ViaCartesian (L s) instance Semiring s => Monoidal (:*:) (L s)
 
 deriving via ViaCartesian (L s)
   instance (VR r, Semiring s) => MonoidalR r (:.:) (L s)
+
+
+par1Iso :: Functor a => (a :.: Par1) <--> a
+par1Iso = fmapIso newIso . newIso
+
+par1IsoL :: (V f, Semiring s) => Iso (L s) (f :.: Par1) f
+par1IsoL = L (isoRev par1Iso <$> basis) :<-> L (isoRev par1Iso basis)
