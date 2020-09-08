@@ -68,18 +68,22 @@ oneHot :: (Obj (L s) a, Representable r, Eq (Rep r), Additive s)
        => Rep r -> a s -> (r :.: a) s
 oneHot i a = Comp1 (tabulate (\ j -> if i == j then a else zeroV))
 
-class Scalable l where
-  scale :: Semiring s => s -> l s Par1 Par1
+class Scalable s k where
+  scale :: s -> Par1 `k` Par1
+  unscale :: Par1 `k` Par1 -> s
 
-instance Scalable L where
+-- Will we need " | k -> s"? Not so far.
+
+instance Semiring s => Scalable s (L s) where
   scale s = L (s *^)
+  unscale (L f) = unPar1 (f (Par1 one))
 
-class LinearMap l where
+class LinearMap s k where
   -- | Semantic function for all linear map representations. Correctness of
   -- every operation on every representation is specified by requiring mu to be
   -- homomorphic for (distributes over) that operation. For instance, mu must be
   -- a functor (Category homomorphism).
-  mu :: (Obj2 (L s) a b, Obj2 (l s) a b) => l s a b <-> L s a b
+  mu :: (Obj2 (L s) a b, Obj2 k a b) => k a b <-> L s a b
 
 -- TODO: maybe generalize so that LHS and RHS objects needn't match. In other
 -- words, the mu functor can have non-identity object maps.
@@ -90,7 +94,7 @@ class LinearMap l where
 -- arrows having signatures matching those building blocks into a single arrow.
 
 -- Trivial instance
-instance LinearMap L where mu = id
+instance LinearMap s (L s) where mu = id
 
 -------------------------------------------------------------------------------
 -- | Vector/map isomorphisms
@@ -188,13 +192,8 @@ fromScalarIso = fromScalar :<-> fromScalar'
 
 #endif
 
-scaleIso :: Semiring s => s <-> L s Par1 Par1
+scaleIso :: Scalable s k => s <-> (Par1 `k` Par1)
 scaleIso = scale :<-> unscale
-
-unscale :: Semiring s => L s Par1 Par1 -> s
-unscale = unPar1 . toScalar'
-
--- unscale (L f) = exNew f one -- unPar1 (f (Par1 one))
 
 -------------------------------------------------------------------------------
 -- | Some "products", defined in terms of composition
